@@ -112,24 +112,53 @@ def create_prompt_for_career_roadmap(student_data: Dict[str, Any]) -> str:
 
 def analyze_with_gemini(prompt: str) -> Dict[str, Any]:
     """Gemini API를 사용하여 분석을 수행합니다."""
-    response = model.generate_content(prompt)
-    
-    # JSON 문자열 추출 및 파싱
     try:
-        # 응답에서 JSON 부분 추출
-        json_str = response.text
-        # 만약 마크다운 코드 블록으로 감싸진 경우 제거
-        if '```json' in json_str:
-            json_str = json_str.split('```json')[1].split('```')[0].strip()
-        elif '```' in json_str:
-            json_str = json_str.split('```')[1].split('```')[0].strip()
+        response = model.generate_content(prompt)
         
-        result = json.loads(json_str)
-        return result
+        # JSON 문자열 추출 및 파싱
+        try:
+            # 응답에서 JSON 부분 추출
+            json_str = response.text
+            # 만약 마크다운 코드 블록으로 감싸진 경우 제거
+            if '```json' in json_str:
+                json_str = json_str.split('```json')[1].split('```')[0].strip()
+            elif '```' in json_str:
+                json_str = json_str.split('```')[1].split('```')[0].strip()
+            
+            # NumPy 타입을 Python 기본 타입으로 변환하는 JSON 인코더
+            class NumpyEncoder(json.JSONEncoder):
+                def default(self, obj):
+                    if isinstance(obj, (np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64,
+                                     np.uint8, np.uint16, np.uint32, np.uint64)):
+                        return int(obj)
+                    elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+                        return float(obj)
+                    elif isinstance(obj, (np.bool_)):
+                        return bool(obj)
+                    elif isinstance(obj, (np.ndarray,)):
+                        return obj.tolist()
+                    elif isinstance(obj, pd.Series):
+                        return obj.tolist()
+                    elif pd.isna(obj):
+                        return None
+                    return super().default(obj)
+            
+            # JSON 파싱 시도
+            try:
+                result = json.loads(json_str)
+            except json.JSONDecodeError:
+                # JSON 파싱 실패 시 직접 변환 시도
+                result = json.loads(json.dumps(eval(json_str), cls=NumpyEncoder))
+            
+            return result
+        except Exception as e:
+            print(f"JSON 파싱 오류: {e}")
+            print(f"원본 응답: {response.text}")
+            return {"error": str(e), "raw_response": response.text}
+            
     except Exception as e:
-        print(f"JSON 파싱 오류: {e}")
-        print(f"원본 응답: {response.text}")
-        return {"error": str(e), "raw_response": response.text}
+        print(f"Gemini API 호출 오류: {e}")
+        return {"error": str(e)}
 
 def create_subject_radar_chart(subject_data: Dict[str, Any]) -> go.Figure:
     """교과별 성취도를 레이더 차트로 시각화합니다."""

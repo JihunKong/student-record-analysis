@@ -64,6 +64,23 @@ def preprocess_csv(file):
     except Exception as e:
         raise Exception(f"CSV 파일 전처리 중 오류 발생: {str(e)}")
 
+def convert_to_python_type(obj):
+    """NumPy 타입을 Python 기본 타입으로 변환합니다."""
+    if isinstance(obj, (np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64,
+                       np.uint8, np.uint16, np.uint32, np.uint64)):
+        return int(obj)
+    elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+        return float(obj)
+    elif isinstance(obj, (np.bool_)):
+        return bool(obj)
+    elif isinstance(obj, (np.ndarray,)):
+        return obj.tolist()
+    elif isinstance(obj, pd.Series):
+        return obj.tolist()
+    elif pd.isna(obj):
+        return None
+    return obj
+
 def extract_student_info(df_tuple):
     """DataFrame에서 학생 정보를 추출합니다."""
     try:
@@ -79,7 +96,7 @@ def extract_student_info(df_tuple):
             if subject in main_data.columns:
                 content = main_data[main_data.columns[list(main_data.columns).index(subject)]].iloc[0]
                 if pd.notna(content):
-                    academic_performance[subject] = content
+                    academic_performance[subject] = convert_to_python_type(content)
         
         # 활동 내역
         activities = {}
@@ -89,14 +106,13 @@ def extract_student_info(df_tuple):
             if activity_type in main_data.columns:
                 content = main_data[main_data.columns[list(main_data.columns).index(activity_type)]].iloc[0]
                 if pd.notna(content):
-                    activities[activity_type] = content
+                    activities[activity_type] = convert_to_python_type(content)
         
         # 진로 희망
         career_aspiration = ""
         if '진로희망' in main_data.columns:
             career_aspiration = main_data[main_data.columns[list(main_data.columns).index('진로희망')]].iloc[0]
-            if pd.isna(career_aspiration):
-                career_aspiration = ""
+            career_aspiration = convert_to_python_type(career_aspiration) if pd.notna(career_aspiration) else ""
         
         # 학기별 성적
         grades = []
@@ -108,13 +124,13 @@ def extract_student_info(df_tuple):
             for _, row in grade_data.iterrows():
                 if pd.notna(row['학 기']):  # 유효한 행만 처리
                     grade_entry = {
-                        '학기': row['학 기'],
-                        '교과': row['교 과'],
-                        '과목': row['과 목'],
-                        '학점수': row['학점수'],
-                        '원점수/과목평균': row['원점수/과목평균 (표준편차)'],
-                        '성취도': row['성취도 (수강자수)'],
-                        '석차등급': row['석차등급'] if '석차등급' in row else None
+                        '학기': convert_to_python_type(row['학 기']),
+                        '교과': convert_to_python_type(row['교 과']),
+                        '과목': convert_to_python_type(row['과 목']),
+                        '학점수': convert_to_python_type(row['학점수']),
+                        '원점수/과목평균': convert_to_python_type(row['원점수/과목평균 (표준편차)']),
+                        '성취도': convert_to_python_type(row['성취도 (수강자수)']),
+                        '석차등급': convert_to_python_type(row['석차등급']) if '석차등급' in row else None
                     }
                     grades.append(grade_entry)
         
