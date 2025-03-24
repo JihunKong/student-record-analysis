@@ -438,12 +438,35 @@ def create_radar_chart(categories: Dict[str, float]) -> plt.Figure:
 
 def process_csv_file(file_path):
     try:
-        df = pd.read_csv(file_path)
-        return extract_student_info(df)
+        # CSV 파일 읽기 (헤더 없이)
+        df = pd.read_csv(file_path, header=None)
+        
+        # 빈 행과 열 제거
+        df = df.dropna(how='all').dropna(axis=1, how='all')
+        
+        # 성적 데이터 시작 위치 찾기 (학기 열이 있는 행)
+        grade_start = df[df[0].str.contains('^학.?기$', na=False, regex=True)].index
+        
+        if len(grade_start) > 0:
+            # 성적 데이터 추출
+            grade_data = df.iloc[grade_start[0]:].copy()
+            
+            # 성적 데이터 컬럼 설정
+            grade_columns = ['학 기', '교 과', '과 목', '학점수', '원점수/과목평균', '성취도 (수강자수)', '석차등급']
+            grade_data.columns = grade_columns[:len(grade_data.columns)]
+            
+            # 세특 데이터 추출 (성적 데이터 이전)
+            special_data = df.iloc[:grade_start[0]].copy()
+            
+            # 데이터 처리
+            return extract_student_info(special_data, grade_data)
+        else:
+            raise Exception("성적 데이터를 찾을 수 없습니다.")
+            
     except Exception as e:
         raise Exception(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
 
-def extract_student_info(df):
+def extract_student_info(special_data, grade_data):
     student_data = {
         'academic_records': {
             'semester1': {'grades': {}, 'details': {}},
@@ -452,7 +475,7 @@ def extract_student_info(df):
         'special_notes': {
             'subjects': {},
             'activities': {},
-            'career': {}
+            'career': ''
         }
     }
 
@@ -460,55 +483,56 @@ def extract_student_info(df):
     main_subjects = ['국어', '수학', '영어', '사회', '과학']
     all_subjects = main_subjects + ['한국사', '정보']
 
-    # 세특 데이터 추출 (0-7번 행)
-    for idx, row in df.iloc[0:8].iterrows():
-        subject = row['국어']  # 첫 번째 열이 과목명
-        content = row['수학']  # 두 번째 열이 세특 내용
-        if pd.notna(subject) and pd.notna(content):
-            student_data['special_notes']['subjects'][subject] = content
+    # 세특 데이터 추출
+    for idx, row in special_data.iterrows():
+        if pd.notna(row[0]) and pd.notna(row[1]):  # 첫 번째와 두 번째 열에 데이터가 있는 경우
+            subject = row[0]  # 첫 번째 열이 과목명
+            content = row[1]  # 두 번째 열이 세특 내용
+            if subject in all_subjects:
+                student_data['special_notes']['subjects'][subject] = content
+            elif subject == '진로희망':
+                student_data['special_notes']['career'] = content
 
-    # 성적 데이터 추출 (마지막 16개 행)
-    grade_data = df.iloc[-16:].copy()
-    
+    # 성적 데이터 추출
     for _, row in grade_data.iterrows():
-        semester = int(row['학 기'])
-        subject = row['과 목']
-        semester_key = f'semester{semester}'
-        
-        if subject in all_subjects:
-            grade_info = {
-                'credit': float(row['학점수']),
-                'raw_score': float(row['원점수/과목평균'].split('/')[0]),
-                'class_average': float(row['원점수/과목평균'].split('/')[1].split('(')[0]),
-                'std_dev': float(row['원점수/과목평균'].split('(')[1].rstrip(')')),
-                'achievement': row['성취도 (수강자수)'].split('(')[0],
-                'rank': int(row['석차등급']) if pd.notna(row['석차등급']) else None
-            }
-            student_data['academic_records'][semester_key]['grades'][subject] = grade_info
+        try:
+            semester = int(float(row['학 기']))
+            subject = row['과 목'].strip()
+            semester_key = f'semester{semester}'
+            
+            if subject in all_subjects:
+                grade_info = {
+                    'credit': float(row['학점수']),
+                    'raw_score': float(row['원점수/과목평균'].split('/')[0]),
+                    'class_average': float(row['원점수/과목평균'].split('/')[1].split('(')[0]),
+                    'std_dev': float(row['원점수/과목평균'].split('(')[1].rstrip(')')),
+                    'achievement': row['성취도 (수강자수)'].split('(')[0],
+                    'rank': int(row['석차등급']) if pd.notna(row['석차등급']) else None
+                }
+                student_data['academic_records'][semester_key]['grades'][subject] = grade_info
+        except Exception as e:
+            print(f"성적 데이터 처리 중 오류: {str(e)} - 행: {row}")
+            continue
 
     # 평균 계산
     for semester in ['semester1', 'semester2']:
         grades = student_data['academic_records'][semester]['grades']
         
-        # 전체 과목 평균
-        total_credits = sum(g['credit'] for g in grades.values())
-        weighted_sum = sum(g['raw_score'] * g['credit'] for g in grades.values())
-        total_average = weighted_sum / total_credits if total_credits > 0 else 0
-        
-        # 주요 과목 평균
-        main_credits = sum(g['credit'] for s, g in grades.items() if s in main_subjects)
-        main_weighted_sum = sum(g['raw_score'] * g['credit'] for s, g in grades.items() if s in main_subjects)
-        main_average = main_weighted_sum / main_credits if main_credits > 0 else 0
-        
-        student_data['academic_records'][semester]['average'] = {
-            'total': round(total_average, 2),
-            'main_subjects': round(main_average, 2)
-        }
-
-    # 진로 희망 데이터 추출
-    career = df.iloc[0]['진로희망']
-    if pd.notna(career):
-        student_data['special_notes']['career'] = career
+        if grades:  # 해당 학기 데이터가 있는 경우에만 계산
+            # 전체 과목 평균
+            total_credits = sum(g['credit'] for g in grades.values())
+            weighted_sum = sum(g['raw_score'] * g['credit'] for g in grades.values())
+            total_average = weighted_sum / total_credits if total_credits > 0 else 0
+            
+            # 주요 과목 평균
+            main_credits = sum(g['credit'] for s, g in grades.items() if s in main_subjects)
+            main_weighted_sum = sum(g['raw_score'] * g['credit'] for s, g in grades.items() if s in main_subjects)
+            main_average = main_weighted_sum / main_credits if main_credits > 0 else 0
+            
+            student_data['academic_records'][semester]['average'] = {
+                'total': round(total_average, 2),
+                'main_subjects': round(main_average, 2)
+            }
 
     return student_data
 
