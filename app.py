@@ -66,12 +66,12 @@ if 'analysis_results' not in st.session_state:
 # 메인 컨텐츠 영역
 if uploaded_file:
     try:
-        # CSV 파일 처리 (기본 인코딩 사용)
+        # CSV 파일 처리
         df = process_csv_file(uploaded_file)
         student_info = extract_student_info(df)
         
         # 탭 생성
-        tab1, tab2 = st.tabs(["원본 데이터", "분석 결과"])
+        tab1, tab2 = st.tabs(["원본 데이터", "성적 분석"])
         
         with tab1:
             st.header("📊 원본 데이터")
@@ -83,28 +83,28 @@ if uploaded_file:
             # 1학기와 2학기 과목 비교
             semester_subjects = go.Figure()
             
-            # 1학기 과목 및 점수
+            # 1학기 과목 및 등급
             first_semester = []
-            first_scores = []
+            first_grades = []
             for grade in student_info['grades']:
-                if grade['semester'] == '1':
+                if grade['semester'] == '1' and grade['grade'] != '0':
                     first_semester.append(grade['subject'])
-                    first_scores.append(float(grade['score']))
+                    first_grades.append(float(grade['grade']))
             
-            # 2학기 과목 및 점수
+            # 2학기 과목 및 등급
             second_semester = []
-            second_scores = []
+            second_grades = []
             for grade in student_info['grades']:
-                if grade['semester'] == '2':
+                if grade['semester'] == '2' and grade['grade'] != '0':
                     second_semester.append(grade['subject'])
-                    second_scores.append(float(grade['score']))
+                    second_grades.append(float(grade['grade']))
             
             # 1학기 데이터 추가
             semester_subjects.add_trace(go.Bar(
                 name='1학기',
                 x=first_semester,
-                y=first_scores,
-                text=first_scores,
+                y=first_grades,
+                text=first_grades,
                 textposition='auto',
             ))
             
@@ -112,16 +112,22 @@ if uploaded_file:
             semester_subjects.add_trace(go.Bar(
                 name='2학기',
                 x=second_semester,
-                y=second_scores,
-                text=second_scores,
+                y=second_grades,
+                text=second_grades,
                 textposition='auto',
             ))
             
             # 레이아웃 업데이트
             semester_subjects.update_layout(
-                title='학기별 과목 성적 비교',
+                title='학기별 과목 등급 비교',
                 xaxis_title='과목',
-                yaxis_title='점수',
+                yaxis_title='등급',
+                yaxis=dict(
+                    range=[9.5, 0.5],  # 1등급이 위로 가도록 y축 반전
+                    tickmode='linear',
+                    tick0=1,
+                    dtick=1
+                ),
                 barmode='group'
             )
             
@@ -130,67 +136,47 @@ if uploaded_file:
             # 평균 비교 차트
             averages = go.Figure()
             
-            # 1학기 평균
-            first_avg = sum(first_scores) / len(first_scores) if first_scores else 0
-            # 2학기 평균
-            second_avg = sum(second_scores) / len(second_scores) if second_scores else 0
-            # 전체 평균
-            total_avg = (first_avg + second_avg) / 2 if first_avg and second_avg else 0
+            # 평균 데이터
+            avg_labels = ['1학기 평균', '2학기 평균', '전체 평균']
+            avg_values = [
+                student_info['first_semester_average'],
+                student_info['second_semester_average'],
+                student_info['total_average']
+            ]
             
             averages.add_trace(go.Bar(
-                x=['1학기 평균', '2학기 평균', '전체 평균'],
-                y=[first_avg, second_avg, total_avg],
-                text=[f'{avg:.2f}' for avg in [first_avg, second_avg, total_avg]],
+                x=avg_labels,
+                y=avg_values,
+                text=[f'{avg:.2f}' for avg in avg_values],
                 textposition='auto',
             ))
             
             averages.update_layout(
-                title='평균 성적 비교',
+                title='평균 등급 비교',
                 xaxis_title='구분',
-                yaxis_title='평균 점수'
+                yaxis_title='등급',
+                yaxis=dict(
+                    range=[9.5, 0.5],  # 1등급이 위로 가도록 y축 반전
+                    tickmode='linear',
+                    tick0=1,
+                    dtick=1
+                )
             )
             
             st.plotly_chart(averages)
             
-            # 과목별 가중치 비교
-            weights = []
-            subjects = []
-            for grade in student_info['grades']:
-                weights.append(float(grade['weight']))
-                subjects.append(grade['subject'])
-            
-            weight_fig = go.Figure(data=[
-                go.Bar(
-                    x=subjects,
-                    y=weights,
-                    text=weights,
-                    textposition='auto',
-                )
-            ])
-            
-            weight_fig.update_layout(
-                title='과목별 가중치 비교',
-                xaxis_title='과목',
-                yaxis_title='가중치'
-            )
-            
-            st.plotly_chart(weight_fig)
-            
             # 평균 정보 표시
-            st.subheader("📊 평균 성적 정보")
+            st.subheader("📊 평균 등급 정보")
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                st.metric(label="1학기 가중평균", value=f"{student_info['first_semester_weighted_average']:.2f}")
-                st.metric(label="1학기 단순평균", value=f"{first_avg:.2f}")
+                st.metric(label="1학기 평균", value=f"{student_info['first_semester_average']:.2f}")
             
             with col2:
-                st.metric(label="2학기 가중평균", value=f"{student_info['second_semester_weighted_average']:.2f}")
-                st.metric(label="2학기 단순평균", value=f"{second_avg:.2f}")
+                st.metric(label="2학기 평균", value=f"{student_info['second_semester_average']:.2f}")
             
             with col3:
-                st.metric(label="전체 가중평균", value=f"{student_info['total_weighted_average']:.2f}")
-                st.metric(label="전체 단순평균", value=f"{total_avg:.2f}")
+                st.metric(label="전체 평균", value=f"{student_info['total_average']:.2f}")
             
             # 하드코딩된 분석 결과 예시
             st.subheader("🤖 AI 분석 결과")

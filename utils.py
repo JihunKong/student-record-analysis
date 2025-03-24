@@ -123,29 +123,27 @@ def extract_student_info(df):
         grade_section = df[df.iloc[:, 0] == '학 기'].index
         if len(grade_section) > 0:
             grade_data = df.iloc[grade_section[0]:]
-            grade_columns = ['학 기', '교 과', '과 목', '학점수', '원점수/과목평균\n (표준편차)', '성취도\n (수강자수)', '석차등급']
             
             for _, row in grade_data.iterrows():
                 if pd.notna(row.iloc[0]):  # 학기 정보가 있는 행만 처리
                     grade_entry = {
-                        'semester': str(row.iloc[0]),
-                        'subject': str(row.iloc[2]),
-                        'score': str(row.iloc[4].split('/')[0]) if pd.notna(row.iloc[4]) else "0",
-                        'weight': str(row.iloc[3]) if pd.notna(row.iloc[3]) else "1"
+                        'semester': str(row.iloc[0]),  # 학기
+                        'subject': str(row.iloc[2]),   # 과목
+                        'grade': str(row.iloc[6]) if pd.notna(row.iloc[6]) else "0"  # 석차등급
                     }
                     grades.append(grade_entry)
         
-        # 평균 계산
-        first_semester = [float(g['score']) * float(g['weight']) for g in grades if g['semester'] == '1']
-        second_semester = [float(g['score']) * float(g['weight']) for g in grades if g['semester'] == '2']
+        # 평균 계산 (등급만)
+        first_semester = [float(g['grade']) for g in grades if g['semester'] == '1' and g['grade'] != '0']
+        second_semester = [float(g['grade']) for g in grades if g['semester'] == '2' and g['grade'] != '0']
         
         student_info['academic_performance'] = academic_performance
         student_info['activities'] = activities
         student_info['career_aspiration'] = career_aspiration
         student_info['grades'] = grades
-        student_info['first_semester_weighted_average'] = sum(first_semester) / len(first_semester) if first_semester else 0
-        student_info['second_semester_weighted_average'] = sum(second_semester) / len(second_semester) if second_semester else 0
-        student_info['total_weighted_average'] = (student_info['first_semester_weighted_average'] + student_info['second_semester_weighted_average']) / 2
+        student_info['first_semester_average'] = sum(first_semester) / len(first_semester) if first_semester else 0
+        student_info['second_semester_average'] = sum(second_semester) / len(second_semester) if second_semester else 0
+        student_info['total_average'] = (student_info['first_semester_average'] + student_info['second_semester_average']) / 2 if first_semester and second_semester else 0
         
         return student_info
         
