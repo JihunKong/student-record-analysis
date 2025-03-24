@@ -224,11 +224,18 @@ def main():
             font-size: 2.5rem;
             font-weight: bold;
             color: #1E3A8A;
-            margin-bottom: 2rem;
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
             text-align: center;
+        }
+        div[data-testid="stSidebarContent"] {
+            padding-top: 2rem;
         }
     </style>
     """, unsafe_allow_html=True)
+    
+    # 상단 여백 추가
+    st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
     
     # 사이드바
     with st.sidebar:
@@ -239,32 +246,11 @@ def main():
         if uploaded_file is not None:
             st.success("파일이 성공적으로 업로드되었습니다!")
         
-        # API 키 입력 섹션 추가
-        st.write("### API 설정")
-        api_key = st.text_input("OpenAI API 키를 입력하세요", type="password")
-        if api_key:
-            os.environ["OPENAI_API_KEY"] = api_key
-            st.success("API 키가 설정되었습니다!")
-        
-        # API 키 설정 방법 안내
-        with st.expander("API 키 설정 방법"):
-            st.markdown("""
-            1. 위의 입력 필드에 OpenAI API 키를 직접 입력하세요.
-            2. 환경 변수에 `OPENAI_API_KEY`를 설정하세요.
-            3. `.streamlit/secrets.toml` 파일에 다음과 같이 설정하세요:
-               ```
-               OPENAI_API_KEY = "your-api-key"
-               ```
-            """)
-        
         st.markdown("---")
         st.markdown("© 2025 학생부 분석기 Made by 공지훈")
     
     # 메인 영역에 제목 추가
     st.markdown("<div class='main-title'>📚 학생부 분석 시스템</div>", unsafe_allow_html=True)
-    
-    # 여백 추가
-    st.markdown("<br>", unsafe_allow_html=True)
     
     # 탭 생성 부분
     tabs = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
