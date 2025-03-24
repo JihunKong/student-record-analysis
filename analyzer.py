@@ -103,14 +103,98 @@ def analyze_with_claude(prompt):
             return "API 키가 설정되지 않았습니다. .env 파일에 ANTHROPIC_API_KEY를 설정하세요."
         
         # API 호출
-        client = anthropic.Anthropic(api_key=anthropic_api_key)
+        client = anthropic.Anthropic(
+            api_key=anthropic_api_key,
+            # 인코딩 문제 해결: 명시적으로 UTF-8 헤더 추가
+            default_headers={
+                "Content-Type": "application/json; charset=utf-8"
+            }
+        )
         
         try:
             # 로깅 추가
             logging.info("Claude API 호출 시작")
+            logging.info(f"프롬프트 길이: {len(prompt)}")
             
-            # 인코딩 문제 해결: 프롬프트 대신 기본 분석 지침만 전송
-            analysis_instruction = """
+            # UTF-8 인코딩 처리
+            if isinstance(prompt, str):
+                # URL 인코딩 대신 직접 UTF-8 인코딩 적용
+                from urllib.parse import quote
+                encoded_prompt = quote(prompt)
+                logging.info(f"UTF-8 인코딩 후 프롬프트 길이: {len(encoded_prompt)}")
+            
+            # 프롬프트를 사용하여 메시지 생성
+            message_data = {
+                "model": "claude-3-7-sonnet-20250219",
+                "max_tokens": 4000,
+                "system": "당신은 학생 데이터를 분석하는 교육 전문가입니다. 주어진 학생 데이터를 분석하여 학생의 강점, 약점, 진로 적합성 등을 종합적으로 평가해주세요. 항상 한국어로 응답하세요.",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": prompt
+                            }
+                        ]
+                    }
+                ]
+            }
+            
+            # JSON 직렬화 시 ensure_ascii=False 적용
+            message_json = json.dumps(message_data, ensure_ascii=False).encode('utf-8')
+            
+            # 직접 API 호출 대신 JSON을 활용한 자체 처리
+            try:
+                # client.messages.create 대신 직접 API 호출 구현
+                import requests
+                
+                # Anthropic API 엔드포인트
+                api_endpoint = "https://api.anthropic.com/v1/messages"
+                
+                # 헤더 설정
+                headers = {
+                    "Content-Type": "application/json; charset=utf-8",
+                    "x-api-key": anthropic_api_key,
+                    "anthropic-version": "2023-06-01"
+                }
+                
+                # API 요청
+                response = requests.post(
+                    api_endpoint,
+                    headers=headers,
+                    data=message_json
+                )
+                
+                # 응답 처리
+                if response.status_code == 200:
+                    result = response.json()
+                    if "content" in result:
+                        result_text = ""
+                        for content_item in result["content"]:
+                            if content_item["type"] == "text":
+                                result_text += content_item["text"]
+                        return result_text
+                    else:
+                        return "API 응답에서 내용을 찾을 수 없습니다."
+                else:
+                    error_msg = f"API 호출 실패 (상태 코드: {response.status_code}): {response.text}"
+                    logging.error(error_msg)
+                    return f"AI 분석 중 API 오류가 발생했습니다: {error_msg}"
+                
+            except Exception as api_error:
+                # 표준 클라이언트로 대체 시도
+                message = client.messages.create(
+                    model="claude-3-7-sonnet-20250219",
+                    max_tokens=4000,
+                    system="당신은 학생 데이터를 분석하는 교육 전문가입니다. 주어진 학생 데이터를 분석하여 학생의 강점, 약점, 진로 적합성 등을 종합적으로 평가해주세요. 항상 한국어로 응답하세요.",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": """
 학생 데이터를 분석하여 학생의 특성과 발전 가능성을 분석해주세요. 다음 항목들을 포함해주세요:
 
 1. 학업 역량 분석
@@ -135,36 +219,23 @@ def analyze_with_claude(prompt):
 
 분석은 객관적 데이터를 기반으로 하되, 긍정적이고 발전적인 관점에서 작성해주세요.
 """
-            
-            # 인코딩 오류 방지를 위해 API 호출 수정
-            message = client.messages.create(
-                model="claude-3-7-sonnet-20250219",
-                max_tokens=4000,
-                system="당신은 학생 데이터를 분석하는 교육 전문가입니다. 주어진 학생 데이터를 분석하여 학생의 강점, 약점, 진로 적합성 등을 종합적으로 평가해주세요. 항상 한국어로 응답하세요.",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text", 
-                                "text": analysis_instruction
-                            }
-                        ]
-                    }
-                ]
-            )
-            
-            logging.info("Claude API 응답 수신 완료")
-            
-            # 응답 처리
-            if hasattr(message, 'content') and message.content:
-                result_text = ""
-                for content_item in message.content:
-                    if content_item.type == "text":
-                        result_text += content_item.text
-                return result_text
-            else:
-                return "API 응답에서 내용을 찾을 수 없습니다."
+                                }
+                            ]
+                        }
+                    ]
+                )
+                
+                logging.info("표준 클라이언트로 대체 호출 성공")
+                
+                # 응답 처리
+                if hasattr(message, 'content') and message.content:
+                    result_text = ""
+                    for content_item in message.content:
+                        if content_item.type == "text":
+                            result_text += content_item.text
+                    return result_text
+                else:
+                    return "API 응답에서 내용을 찾을 수 없습니다."
                 
         except Exception as api_error:
             error_msg = str(api_error)
@@ -241,11 +312,17 @@ def analyze_csv_directly(csv_content):
         if not anthropic_api_key:
             return "API 키가 설정되지 않았습니다. .env 파일에 ANTHROPIC_API_KEY를 설정하세요."
         
-        # API 호출
-        client = anthropic.Anthropic(api_key=anthropic_api_key)
-        
-        # 인코딩 문제 해결: CSV 대신 기본 분석 지침만 전송
-        analysis_instruction = """
+        # API 호출 준비
+        try:
+            # 로깅 추가
+            logging.info("CSV 파일 직접 분석 중...")
+            
+            # 인코딩 문제 해결: 직접 API 호출 구현
+            import requests
+            import json
+            
+            # 기본 분석 지침
+            analysis_instruction = """
 학생 데이터를 분석하여 학생의 특성과 발전 가능성을 분석해주세요. 다음 항목들을 포함해주세요:
 
 1. 학업 역량 분석
@@ -270,43 +347,104 @@ def analyze_csv_directly(csv_content):
 
 분석은 긍정적이고 발전적인 관점에서 작성해주세요.
 """
-        
-        # 로그 추가
-        logging.info("CSV 파일 직접 분석 중...")
-        
-        # 직접 API 호출
-        try:
-            message = client.messages.create(
-                model="claude-3-7-sonnet-20250219",
-                max_tokens=4000,
-                system="당신은 학생 데이터를 분석하는 교육 전문가입니다. 주어진 학생 데이터를 분석하여 학생의 강점, 약점, 진로 적합성 등을 종합적으로 평가해주세요. 항상 한국어로 응답하세요.",
-                messages=[
+            
+            # 메시지 데이터 준비
+            message_data = {
+                "model": "claude-3-7-sonnet-20250219",
+                "max_tokens": 4000,
+                "system": "당신은 학생 데이터를 분석하는 교육 전문가입니다. 주어진 학생 데이터를 분석하여 학생의 강점, 약점, 진로 적합성 등을 종합적으로 평가해주세요. 항상 한국어로 응답하세요.",
+                "messages": [
                     {
                         "role": "user",
                         "content": [
                             {
-                                "type": "text", 
+                                "type": "text",
                                 "text": analysis_instruction
                             }
                         ]
                     }
                 ]
+            }
+            
+            # JSON 직렬화 (ensure_ascii=False로 한글 유지)
+            message_json = json.dumps(message_data, ensure_ascii=False).encode('utf-8')
+            
+            # API 엔드포인트
+            api_endpoint = "https://api.anthropic.com/v1/messages"
+            
+            # 헤더 설정
+            headers = {
+                "Content-Type": "application/json; charset=utf-8",
+                "x-api-key": anthropic_api_key,
+                "anthropic-version": "2023-06-01"
+            }
+            
+            # API 요청
+            response = requests.post(
+                api_endpoint,
+                headers=headers,
+                data=message_json
             )
             
             # 응답 처리
-            if hasattr(message, 'content') and message.content:
-                result_text = ""
-                for content_item in message.content:
-                    if content_item.type == "text":
-                        result_text += content_item.text
-                return result_text
+            if response.status_code == 200:
+                result = response.json()
+                if "content" in result:
+                    result_text = ""
+                    for content_item in result["content"]:
+                        if content_item["type"] == "text":
+                            result_text += content_item["text"]
+                    return result_text
+                else:
+                    return "API 응답에서 내용을 찾을 수 없습니다."
             else:
-                return "API 응답에서 내용을 찾을 수 없습니다."
-                
+                error_msg = f"API 호출 실패 (상태 코드: {response.status_code}): {response.text}"
+                logging.error(error_msg)
+                return f"AI 분석 중 API 오류가 발생했습니다: {error_msg}"
+            
         except Exception as api_error:
             error_msg = str(api_error)
             logging.error(f"Claude API 호출 오류: {error_msg}")
-            return f"AI 분석 중 API 오류가 발생했습니다: {error_msg}"
+            
+            # 대체 방법: 표준 클라이언트 사용
+            try:
+                # API 호출
+                client = anthropic.Anthropic(
+                    api_key=anthropic_api_key,
+                    default_headers={
+                        "Content-Type": "application/json; charset=utf-8"
+                    }
+                )
+                
+                message = client.messages.create(
+                    model="claude-3-7-sonnet-20250219",
+                    max_tokens=4000,
+                    system="당신은 학생 데이터를 분석하는 교육 전문가입니다. 주어진 학생 데이터를 분석하여 학생의 강점, 약점, 진로 적합성 등을 종합적으로 평가해주세요. 항상 한국어로 응답하세요.",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": analysis_instruction
+                                }
+                            ]
+                        }
+                    ]
+                )
+                
+                # 응답 처리
+                if hasattr(message, 'content') and message.content:
+                    result_text = ""
+                    for content_item in message.content:
+                        if content_item.type == "text":
+                            result_text += content_item.text
+                    return result_text
+                else:
+                    return "API 응답에서 내용을 찾을 수 없습니다."
+                
+            except Exception as client_error:
+                return f"AI 분석 중 오류가 발생했습니다: {str(client_error)}"
             
     except Exception as e:
         logging.error(f"분석 오류: {str(e)}")
