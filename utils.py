@@ -7,7 +7,12 @@ import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+import re
+import os
+import json
+import anthropic
 from typing import Dict, List, Any, Tuple
+from datetime import datetime
 
 def preprocess_csv(file):
     """CSV 파일을 전처리하여 DataFrame으로 변환합니다."""
@@ -511,145 +516,103 @@ def create_radar_chart(categories: Dict[str, float]) -> plt.Figure:
     
     return fig
 
-def process_csv_file(file) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """CSV 파일을 처리하여 세특 데이터와 성적 데이터를 분리합니다."""
+def process_csv_file(file_path: str) -> pd.DataFrame:
+    """CSV 파일을 처리하고 학생별로 분류된 데이터프레임 반환"""
     try:
-        # 여러 인코딩 방식 시도
-        encodings = ['utf-8', 'utf-8-sig', 'cp949', 'euc-kr']
-        df = None
+        # 파일 읽기
+        df = pd.read_csv(file_path, encoding='utf-8')
         
-        for encoding in encodings:
-            try:
-                # 파일 포인터 위치 초기화 (파일 객체인 경우)
-                if hasattr(file, 'seek'):
-                    file.seek(0)
+        # NaN 값을 빈 문자열로 변환
+        df = df.fillna('')
+        
+        # 학생별 데이터 정리
+        student_data = {}
+        
+        for _, row in df.iterrows():
+            student_id = row['아이디']
+            if student_id not in student_data:
+                student_data[student_id] = {
+                    'name': row['이름'],
+                    'special_notes': {
+                        'subjects': {},
+                        'activities': {}
+                    },
+                    'academic_records': {
+                        'semester1': {'grades': {}, 'average': {}},
+                        'semester2': {'grades': {}, 'average': {}}
+                    },
+                    'career_aspiration': row.get('진로희망', '미정')
+                }
+            
+            # 세특과 성적 데이터 분리 처리
+            for col in df.columns:
+                # 세특 처리
+                if '세특' in col:
+                    subject = col.replace('세특', '').strip()
+                    if row[col]:
+                        student_data[student_id]['special_notes']['subjects'][subject] = row[col]
                 
-                # 해당 인코딩으로 시도
-                df = pd.read_csv(file, encoding=encoding, header=None)  # 헤더 지정하지 않고 읽음
-                print(f"성공적으로 파일 읽음: 인코딩 {encoding}")
-                break
-            except UnicodeDecodeError:
-                print(f"인코딩 {encoding}으로 파일 읽기 실패, 다음 인코딩 시도...")
-                continue
-            except Exception as e:
-                print(f"파일 읽기 오류: {str(e)}")
-                continue
-        
-        if df is None:
-            raise Exception("모든 인코딩으로 파일 읽기 실패")
-        
-        # 파일 구조 확인
-        print(f"CSV 파일 총 행 수: {len(df)}")
-        print(f"CSV 파일 컬럼 수: {len(df.columns)}")
-        
-        # 데이터 내용 확인 (처음 몇 행)
-        print("첫 번째 행 (헤더):", df.iloc[0].tolist())
-        if len(df) > 1:
-            print("두 번째 행 (첫 번째 데이터 행):", df.iloc[1].tolist())
-        
-        # 첫 번째 행을 헤더로 지정
-        df.columns = df.iloc[0]
-        df = df.drop(0)  # 첫 번째 행 제거
-        df = df.reset_index(drop=True)  # 인덱스 재설정
-        
-        # 빈 행 찾기 (모든 셀이 NaN인 행)
-        empty_rows = df.isna().all(axis=1)
-        empty_row_indices = empty_rows[empty_rows].index.tolist()
-        
-        print(f"빈 행 인덱스: {empty_row_indices}")
-        
-        if empty_row_indices:
-            # 첫 번째 빈 행을 기준으로 세특 데이터와 성적 데이터 분리
-            first_empty_row = empty_row_indices[0]
-            
-            # 세특 데이터: 첫 번째 행부터 빈 행 전까지
-            special_notes = df.iloc[:first_empty_row].copy()
-            print(f"세특 데이터 행 수: {len(special_notes)}")
-            
-            # 성적 데이터 시작 행 찾기 (학 기 또는 학기 텍스트가 포함된 행)
-            grade_header_row = None
-            for i in range(first_empty_row + 1, len(df)):
-                row_values = df.iloc[i].astype(str).tolist()
-                if any('학 기' in str(val) or '학기' in str(val) for val in row_values):
-                    grade_header_row = i
-                    break
-            
-            if grade_header_row is not None:
-                print(f"성적 데이터 헤더 행: {grade_header_row}")
-                # 성적 데이터 헤더 설정
-                grade_header = df.iloc[grade_header_row]
+                # 활동 세특 처리
+                elif '활동' in col and '세특' not in col:
+                    activity_type = col.replace('활동', '').strip()
+                    if row[col]:
+                        student_data[student_id]['special_notes']['activities'][activity_type] = row[col]
                 
-                # 헤더 컬럼명 설정 (NaN 값은 원래 컬럼명 유지)
-                grade_columns = []
-                for i, col in enumerate(grade_header):
-                    if pd.notna(col):
-                        grade_columns.append(str(col))
+                # 성적 처리 - 1학기
+                elif '1학기' in col and '등급' in col:
+                    subject = col.replace('1학기', '').replace('등급', '').strip()
+                    if row[col] and row[col] != '':
+                        try:
+                            rank = int(float(row[col]))
+                            student_data[student_id]['academic_records']['semester1']['grades'][subject] = {
+                                'rank': rank,
+                                'raw_score': 100 - ((rank - 1) * 10)  # 근사치 계산
+                            }
+                        except (ValueError, TypeError):
+                            pass
+                
+                # 성적 처리 - 2학기
+                elif '2학기' in col and '등급' in col:
+                    subject = col.replace('2학기', '').replace('등급', '').strip()
+                    if row[col] and row[col] != '':
+                        try:
+                            rank = int(float(row[col]))
+                            student_data[student_id]['academic_records']['semester2']['grades'][subject] = {
+                                'rank': rank,
+                                'raw_score': 100 - ((rank - 1) * 10)  # 근사치 계산
+                            }
+                        except (ValueError, TypeError):
+                            pass
+        
+        # 평균 계산
+        for student_id, data in student_data.items():
+            for semester in ['semester1', 'semester2']:
+                grades = data['academic_records'][semester]['grades']
+                if grades:
+                    # 전체 평균 계산
+                    total_rank_sum = sum([g['rank'] for g in grades.values()])
+                    total_rank_avg = total_rank_sum / len(grades) if grades else 0
+                    
+                    # 주요과목 평균 계산 (국어, 영어, 수학)
+                    main_subjects = [subj for subj in grades.keys() if any(key in subj for key in ['국어', '영어', '수학'])]
+                    if main_subjects:
+                        main_rank_sum = sum([grades[subj]['rank'] for subj in main_subjects])
+                        main_rank_avg = main_rank_sum / len(main_subjects)
                     else:
-                        # 원래 컬럼명 또는 인덱스 기반 이름 사용
-                        grade_columns.append(f"Column_{i}")
-                
-                # 성적 데이터 추출 (헤더 다음 행부터 끝까지)
-                grade_data = df.iloc[grade_header_row+1:].copy()
-                grades = pd.DataFrame(grade_data.values, columns=grade_columns)
-                
-                print(f"성적 데이터 행 수: {len(grades)}")
-            else:
-                print("성적 데이터 헤더를 찾을 수 없음")
-                grades = pd.DataFrame()
-        else:
-            # 빈 행이 없는 경우, 다른 방법으로 데이터 분리 시도
-            print("빈 행이 없습니다. 다른 방법으로 데이터 분리를 시도합니다.")
-            
-            # '학 기' 또는 '학기' 텍스트가 포함된 행 찾기
-            grade_header_row = None
-            for i in range(len(df)):
-                row_values = df.iloc[i].astype(str).tolist()
-                if any('학 기' in str(val) or '학기' in str(val) for val in row_values):
-                    grade_header_row = i
-                    break
-            
-            if grade_header_row is not None:
-                print(f"성적 데이터 헤더 행: {grade_header_row}")
-                
-                # 세특 데이터 (첫 번째 행부터 성적 헤더 전까지)
-                special_notes = df.iloc[:grade_header_row].copy()
-                print(f"세특 데이터 행 수: {len(special_notes)}")
-                
-                # 성적 데이터 헤더 설정
-                grade_header = df.iloc[grade_header_row]
-                
-                # 헤더 컬럼명 설정 (NaN 값은 원래 컬럼명 유지)
-                grade_columns = []
-                for i, col in enumerate(grade_header):
-                    if pd.notna(col):
-                        grade_columns.append(str(col))
-                    else:
-                        # 원래 컬럼명 또는 인덱스 기반 이름 사용
-                        grade_columns.append(f"Column_{i}")
-                
-                # 성적 데이터 추출 (헤더 다음 행부터 끝까지)
-                grade_data = df.iloc[grade_header_row+1:].copy()
-                grades = pd.DataFrame(grade_data.values, columns=grade_columns)
-                
-                print(f"성적 데이터 행 수: {len(grades)}")
-            else:
-                # 성적 데이터를 구분할 수 없는 경우, 모든 데이터를 세특으로 간주
-                print("성적 데이터를 구분할 수 없습니다. 모든 데이터를 세특으로 처리합니다.")
-                special_notes = df.copy()
-                grades = pd.DataFrame()
+                        main_rank_avg = 0
+                    
+                    data['academic_records'][semester]['average'] = {
+                        'total': total_rank_avg,
+                        'main_subjects': main_rank_avg
+                    }
         
-        # 결과 출력
-        print(f"최종 세특 데이터: {len(special_notes)} 행, {len(special_notes.columns)} 열")
-        if not grades.empty:
-            print(f"최종 성적 데이터: {len(grades)} 행, {len(grades.columns)} 열")
-        
-        return special_notes, grades
-        
+        return student_data
+    
     except Exception as e:
         print(f"CSV 파일 처리 중 오류 발생: {str(e)}")
         import traceback
         traceback.print_exc()
-        return pd.DataFrame(), pd.DataFrame()
+        return {}
 
 def create_analysis_prompt(csv_content: str) -> str:
     """분석을 위한 프롬프트를 생성합니다."""
