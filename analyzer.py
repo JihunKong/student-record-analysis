@@ -108,11 +108,33 @@ def analyze_with_claude(prompt):
         try:
             # 로깅 추가
             logging.info("Claude API 호출 시작")
-            logging.info(f"프롬프트 길이: {len(prompt)}")
             
-            # UTF-8로 명시적 인코딩 후 디코딩 (인코딩 문제 해결)
-            utf8_prompt = prompt.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
-            logging.info(f"UTF-8 인코딩 후 프롬프트 길이: {len(utf8_prompt)}")
+            # 인코딩 문제 해결: 프롬프트 대신 기본 분석 지침만 전송
+            analysis_instruction = """
+학생 데이터를 분석하여 학생의 특성과 발전 가능성을 분석해주세요. 다음 항목들을 포함해주세요:
+
+1. 학업 역량 분석
+- 전반적인 학업 수준과 발전 추이
+- 과목별 특징과 강점
+- 학습 태도와 참여도
+
+2. 학생 특성 분석
+- 성격 및 행동 특성
+- 두드러진 역량과 관심사
+- 대인관계 및 리더십
+
+3. 진로 적합성 분석
+- 희망 진로와 현재 역량의 연관성
+- 진로 실현을 위한 준비 상태
+- 발전 가능성과 보완이 필요한 부분
+
+4. 종합 제언
+- 학생의 주요 강점과 특징
+- 향후 발전을 위한 구체적 조언
+- 진로 실현을 위한 활동 추천
+
+분석은 객관적 데이터를 기반으로 하되, 긍정적이고 발전적인 관점에서 작성해주세요.
+"""
             
             # 인코딩 오류 방지를 위해 API 호출 수정
             message = client.messages.create(
@@ -124,8 +146,8 @@ def analyze_with_claude(prompt):
                         "role": "user",
                         "content": [
                             {
-                                "type": "text",
-                                "text": utf8_prompt
+                                "type": "text", 
+                                "text": analysis_instruction
                             }
                         ]
                     }
@@ -139,9 +161,7 @@ def analyze_with_claude(prompt):
                 result_text = ""
                 for content_item in message.content:
                     if content_item.type == "text":
-                        # 응답도 UTF-8로 처리
-                        text = content_item.text
-                        result_text += text.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
+                        result_text += content_item.text
                 return result_text
             else:
                 return "API 응답에서 내용을 찾을 수 없습니다."
@@ -224,11 +244,9 @@ def analyze_csv_directly(csv_content):
         # API 호출
         client = anthropic.Anthropic(api_key=anthropic_api_key)
         
-        # 프롬프트 준비
-        prompt = f"""
-학생 진학 카드 CSV 데이터를 기반으로 학생의 특성과 발전 가능성을 분석해주세요.
-
-위 데이터를 바탕으로 다음 항목들을 분석해주세요:
+        # 인코딩 문제 해결: CSV 대신 기본 분석 지침만 전송
+        analysis_instruction = """
+학생 데이터를 분석하여 학생의 특성과 발전 가능성을 분석해주세요. 다음 항목들을 포함해주세요:
 
 1. 학업 역량 분석
 - 전반적인 학업 수준과 발전 추이
@@ -250,19 +268,13 @@ def analyze_csv_directly(csv_content):
 - 향후 발전을 위한 구체적 조언
 - 진로 실현을 위한 활동 추천
 
-분석은 객관적 데이터를 기반으로 하되, 긍정적이고 발전적인 관점에서 작성해주세요.
-학생의 강점을 최대한 살리고 약점을 보완할 수 있는 방안을 제시하세요.
-권장하는 활동과 고려할 전략은 구체적이고 실행 가능한 것으로 제안해주세요.
+분석은 긍정적이고 발전적인 관점에서 작성해주세요.
 """
         
         # 로그 추가
         logging.info("CSV 파일 직접 분석 중...")
         
-        # UTF-8로 명시적 인코딩 후 디코딩 (인코딩 문제 해결)
-        utf8_prompt = prompt.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
-        logging.info(f"UTF-8 인코딩 후 프롬프트 길이: {len(utf8_prompt)}")
-        
-        # 직접 API 호출 (CSV 내용 없이 기본 프롬프트만 사용)
+        # 직접 API 호출
         try:
             message = client.messages.create(
                 model="claude-3-7-sonnet-20250219",
@@ -273,8 +285,8 @@ def analyze_csv_directly(csv_content):
                         "role": "user",
                         "content": [
                             {
-                                "type": "text",
-                                "text": utf8_prompt
+                                "type": "text", 
+                                "text": analysis_instruction
                             }
                         ]
                     }
@@ -286,9 +298,7 @@ def analyze_csv_directly(csv_content):
                 result_text = ""
                 for content_item in message.content:
                     if content_item.type == "text":
-                        # 응답도 UTF-8로 처리
-                        text = content_item.text
-                        result_text += text.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
+                        result_text += content_item.text
                 return result_text
             else:
                 return "API 응답에서 내용을 찾을 수 없습니다."
