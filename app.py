@@ -174,132 +174,136 @@ with st.sidebar:
 # 메인 컨텐츠 영역
 if uploaded_file:
     try:
-        # CSV 파일 처리
+        # 파일 처리 및 학생 정보 추출
         special_notes, grades = process_csv_file(uploaded_file)
         student_info = extract_student_info(special_notes, grades)
         
-        # 탭 생성
-        tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
-        
-        with tab1:
-            st.markdown('<h2 class="section-header">📊 원본 데이터</h2>', unsafe_allow_html=True)
+        # 학생 정보가 비어있으면 예외 발생
+        if not student_info:
+            st.error("학생 정보를 추출할 수 없습니다.")
+        else:
+            # 탭 생성
+            tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
             
-            # 세특 데이터 표시
-            st.markdown("### 세부능력 및 특기사항")
-            st.dataframe(special_notes)
+            with tab1:
+                st.markdown('<h2 class="section-header">📊 원본 데이터</h2>', unsafe_allow_html=True)
+                
+                # 세특 데이터 표시
+                st.markdown("### 세부능력 및 특기사항")
+                st.dataframe(special_notes)
+                
+                # 성적 데이터 표시
+                st.markdown("### 성적 데이터")
+                st.dataframe(grades)
             
-            # 성적 데이터 표시
-            st.markdown("### 성적 데이터")
-            st.dataframe(grades)
-        
-        with tab2:
-            st.markdown('<h2 class="section-header">📈 성적 분석</h2>', unsafe_allow_html=True)
-            
-            # 과목별 비교 차트
-            subjects = ['국어', '수학', '영어', '한국사', '사회', '과학', '정보']
-            semester1_grades = [student_info['academic_records']['semester1']['grades'][subject]['rank'] for subject in subjects]
-            semester2_grades = [student_info['academic_records']['semester2']['grades'][subject]['rank'] for subject in subjects]
-            
-            fig = go.Figure()
-            fig.add_trace(go.Bar(name='1학기', x=subjects, y=semester1_grades))
-            fig.add_trace(go.Bar(name='2학기', x=subjects, y=semester2_grades))
-            fig.update_layout(
-                title='과목별 등급 비교',
-                height=400,
-                showlegend=True,
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1
+            with tab2:
+                st.markdown('<h2 class="section-header">📈 성적 분석</h2>', unsafe_allow_html=True)
+                
+                # 과목별 비교 차트
+                subjects = ['국어', '수학', '영어', '한국사', '사회', '과학', '정보']
+                semester1_grades = [student_info['academic_records']['semester1']['grades'][subject]['rank'] for subject in subjects]
+                semester2_grades = [student_info['academic_records']['semester2']['grades'][subject]['rank'] for subject in subjects]
+                
+                fig = go.Figure()
+                fig.add_trace(go.Bar(name='1학기', x=subjects, y=semester1_grades))
+                fig.add_trace(go.Bar(name='2학기', x=subjects, y=semester2_grades))
+                fig.update_layout(
+                    title='과목별 등급 비교',
+                    height=400,
+                    showlegend=True,
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1
+                    )
                 )
-            )
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # 평균 지표 표시
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("#### 전체 과목 평균", unsafe_allow_html=True)
-                st.markdown("<div class='info-box'>", unsafe_allow_html=True)
-                st.write(f"1학기 평균: {student_info['academic_records']['semester1']['average']['total']:.2f}")
-                st.write(f"2학기 평균: {student_info['academic_records']['semester2']['average']['total']:.2f}")
-                st.write(f"전체 평균: {student_info['academic_records']['total']['average']['total']:.2f}")
-                st.markdown("</div>", unsafe_allow_html=True)
+                st.plotly_chart(fig, use_container_width=True)
                 
-                st.markdown("#### 평균 계산 과정", unsafe_allow_html=True)
-                st.markdown("<div class='info-box'>", unsafe_allow_html=True)
-                st.write("1. 각 과목의 원점수 합산")
-                st.write("2. 과목 수로 나누어 평균 계산")
-                st.write("3. 가중치 적용 (이수단위 고려)")
-                st.markdown("</div>", unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown("#### 주요 과목 평균", unsafe_allow_html=True)
-                st.markdown("<div class='info-box'>", unsafe_allow_html=True)
-                st.write(f"1학기 주요과목 평균: {student_info['academic_records']['semester1']['average']['main_subjects']:.2f}")
-                st.write(f"2학기 주요과목 평균: {student_info['academic_records']['semester2']['average']['main_subjects']:.2f}")
-                st.write(f"전체 주요과목 평균: {student_info['academic_records']['total']['average']['main_subjects']:.2f}")
-                st.markdown("</div>", unsafe_allow_html=True)
+                # 평균 지표 표시
+                col1, col2 = st.columns(2)
                 
-                st.markdown("#### 주요 과목", unsafe_allow_html=True)
-                st.markdown("<div class='info-box'>", unsafe_allow_html=True)
-                st.write("- 국어")
-                st.write("- 수학")
-                st.write("- 영어")
-                st.write("- 한국사")
-                st.write("- 사회")
-                st.write("- 과학")
-                st.write("- 정보")
-                st.markdown("</div>", unsafe_allow_html=True)
-        
-        with tab3:
-            st.markdown('<h2 class="section-header">📝 세부능력 및 특기사항 열람</h2>', unsafe_allow_html=True)
-            
-            # 세특 데이터 표시
-            if student_info['special_notes']['subjects']:
-                st.markdown('<h3 class="subsection-header">🎓 교과별 세부능력 및 특기사항</h3>', unsafe_allow_html=True)
-                for subject, content in student_info['special_notes']['subjects'].items():
-                    with st.expander(f"{subject} 세부특기사항"):
-                        st.write(content)
-            
-            # 활동 내역 표시
-            if student_info['special_notes']['activities']:
-                st.markdown('<h3 class="subsection-header">🎯 창의적 체험활동</h3>', unsafe_allow_html=True)
-                for activity_type, content in student_info['special_notes']['activities'].items():
-                    with st.expander(f"{activity_type} 활동"):
-                        st.write(content)
-            
-            # 진로 희망 표시
-            if student_info['career_aspiration']:
-                st.markdown('<h3 class="subsection-header">🎯 진로 희망</h3>', unsafe_allow_html=True)
-                st.markdown('<div class="subject-content">', unsafe_allow_html=True)
-                st.write(student_info['career_aspiration'])
-                st.markdown('</div>', unsafe_allow_html=True)
-        
-        with tab4:
-            st.markdown('<h2 class="section-header">🤖 AI 분석</h2>', unsafe_allow_html=True)
-            
-            if st.button("AI 분석 실행", use_container_width=True):
-                with st.spinner("AI가 학생부를 분석하고 있습니다..."):
-                    try:
-                        # 데이터를 문자열로 변환
-                        data_str = str(student_info)
-                        
-                        # AI 분석 수행
-                        analysis_result = analyze_student_record(student_info)
-                        
-                        if "error" not in analysis_result:
-                            st.markdown("<div class='analysis-card'>", unsafe_allow_html=True)
-                            st.markdown(analysis_result["analysis"])
-                            st.markdown("</div>", unsafe_allow_html=True)
-                        else:
-                            st.error(f"AI 분석 중 오류가 발생했습니다: {analysis_result['error']}")
+                with col1:
+                    st.markdown("#### 전체 과목 평균", unsafe_allow_html=True)
+                    st.markdown("<div class='info-box'>", unsafe_allow_html=True)
+                    st.write(f"1학기 평균: {student_info['academic_records']['semester1']['average']['total']:.2f}")
+                    st.write(f"2학기 평균: {student_info['academic_records']['semester2']['average']['total']:.2f}")
+                    st.write(f"전체 평균: {student_info['academic_records']['total']['average']['total']:.2f}")
+                    st.markdown("</div>", unsafe_allow_html=True)
                     
-                    except Exception as e:
-                        st.error(f"AI 분석 중 오류가 발생했습니다: {str(e)}")
+                    st.markdown("#### 평균 계산 과정", unsafe_allow_html=True)
+                    st.markdown("<div class='info-box'>", unsafe_allow_html=True)
+                    st.write("1. 각 과목의 원점수 합산")
+                    st.write("2. 과목 수로 나누어 평균 계산")
+                    st.write("3. 가중치 적용 (이수단위 고려)")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown("#### 주요 과목 평균", unsafe_allow_html=True)
+                    st.markdown("<div class='info-box'>", unsafe_allow_html=True)
+                    st.write(f"1학기 주요과목 평균: {student_info['academic_records']['semester1']['average']['main_subjects']:.2f}")
+                    st.write(f"2학기 주요과목 평균: {student_info['academic_records']['semester2']['average']['main_subjects']:.2f}")
+                    st.write(f"전체 주요과목 평균: {student_info['academic_records']['total']['average']['main_subjects']:.2f}")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    st.markdown("#### 주요 과목", unsafe_allow_html=True)
+                    st.markdown("<div class='info-box'>", unsafe_allow_html=True)
+                    st.write("- 국어")
+                    st.write("- 수학")
+                    st.write("- 영어")
+                    st.write("- 한국사")
+                    st.write("- 사회")
+                    st.write("- 과학")
+                    st.write("- 정보")
+                    st.markdown("</div>", unsafe_allow_html=True)
             
+            with tab3:
+                st.markdown('<h2 class="section-header">📝 세부능력 및 특기사항 열람</h2>', unsafe_allow_html=True)
+                
+                # 세특 데이터 표시
+                if student_info['special_notes']['subjects']:
+                    st.markdown('<h3 class="subsection-header">교과별 세부능력 및 특기사항</h3>', unsafe_allow_html=True)
+                    for subject, content in student_info['special_notes']['subjects'].items():
+                        with st.expander(f"{subject} 세부특기사항"):
+                            st.write(content)
+                
+                # 활동 내역 표시
+                if student_info['special_notes']['activities']:
+                    st.markdown('<h3 class="subsection-header">🎯 창의적 체험활동</h3>', unsafe_allow_html=True)
+                    for activity_type, content in student_info['special_notes']['activities'].items():
+                        with st.expander(f"{activity_type} 활동"):
+                            st.write(content)
+                
+                # 진로 희망 표시
+                if student_info['career_aspiration']:
+                    st.markdown('<h3 class="subsection-header">🎯 진로 희망</h3>', unsafe_allow_html=True)
+                    st.markdown('<div class="subject-content">', unsafe_allow_html=True)
+                    st.write(student_info['career_aspiration'])
+                    st.markdown('</div>', unsafe_allow_html=True)
+            
+            with tab4:
+                st.markdown('<h2 class="section-header">🤖 AI 분석</h2>', unsafe_allow_html=True)
+                
+                if st.button("AI 분석 실행", use_container_width=True):
+                    with st.spinner("AI가 학생부를 분석하고 있습니다..."):
+                        try:
+                            # 데이터를 문자열로 변환
+                            data_str = str(student_info)
+                            
+                            # AI 분석 수행
+                            analysis_result = analyze_student_record(student_info)
+                            
+                            if "error" not in analysis_result:
+                                st.markdown("<div class='analysis-card'>", unsafe_allow_html=True)
+                                st.markdown(analysis_result["analysis"])
+                                st.markdown("</div>", unsafe_allow_html=True)
+                            else:
+                                st.error(f"AI 분석 중 오류가 발생했습니다: {analysis_result['error']}")
+                        
+                        except Exception as e:
+                            st.error(f"AI 분석 중 오류가 발생했습니다: {str(e)}")
+                
     except Exception as e:
         st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
 
