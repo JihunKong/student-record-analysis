@@ -30,7 +30,12 @@ if not GEMINI_API_KEY:
     st.stop()
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-2.0-flash', generation_config={
+    'temperature': 0.7,
+    'top_p': 0.8,
+    'top_k': 40,
+    'max_output_tokens': 2048,
+})
 
 # 앱 타이틀
 st.title("📚 생활기록부 분석 및 시각화 자동화 프로그램")
