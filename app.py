@@ -10,7 +10,7 @@ from datetime import datetime
 import google.generativeai as genai
 
 # 로컬 모듈 임포트
-from utils import preprocess_csv, extract_student_info, create_downloadable_report, plot_timeline, create_radar_chart, process_csv_file, create_analysis_prompt
+from utils import preprocess_csv, extract_student_info, create_downloadable_report, plot_timeline, create_radar_chart, process_csv_file, create_analysis_prompt, analyze_grades, create_grade_comparison_chart, create_average_comparison_chart, create_credit_weighted_chart
 from analyzer import analyze_student_record, analyze_with_gemini
 
 # .env 파일 로드
@@ -65,7 +65,7 @@ uploaded_file = st.file_uploader("생활기록부 CSV 파일을 업로드하세�
 if uploaded_file is not None:
     try:
         # 파일 처리
-        csv_content = process_csv_file(uploaded_file)
+        csv_content, original_data = process_csv_file(uploaded_file)
         
         # 분석 프롬프트 생성
         prompt = create_analysis_prompt(csv_content)
@@ -181,6 +181,121 @@ if uploaded_file is not None:
             for activity in activities["비교과_활동"]:
                 st.write(f"- {activity}")
             
+        # 원본 데이터 토글
+        with st.expander("원본 데이터 보기"):
+            st.dataframe(original_data)
+        
+        # 학생 정보 추출
+        student_info = extract_student_info(original_data)
+        
+        # 성적 분석
+        grade_data = pd.DataFrame([
+            {
+                '학 기': row['학 기'],
+                '과 목': row['과 목'],
+                '학점수': row['학점수'],
+                '석차등급': row['석차등급']
+            }
+            for _, row in original_data.iterrows()
+            if pd.notna(row.get('석차등급', None))
+        ])
+        
+        if not grade_data.empty:
+            st.header("성적 분석")
+            
+            # 성적 분석 수행
+            grade_analysis = analyze_grades(grade_data)
+            
+            # 탭 생성
+            tab1, tab2, tab3 = st.tabs(["학기별 과목 비교", "평균 비교", "가중치 비교"])
+            
+            with tab1:
+                st.subheader("학기별 과목 등급 비교")
+                fig1 = create_grade_comparison_chart(grade_analysis)
+                st.plotly_chart(fig1, use_container_width=True)
+            
+            with tab2:
+                st.subheader("평균 등급 비교")
+                fig2 = create_average_comparison_chart(grade_analysis)
+                st.plotly_chart(fig2, use_container_width=True)
+            
+            with tab3:
+                st.subheader("과목별 등급과 가중등급 비교")
+                fig3 = create_credit_weighted_chart(grade_analysis)
+                st.plotly_chart(fig3, use_container_width=True)
+            
+            # 평균 정보 표시
+            st.subheader("평균 등급 정보")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("#### 1학기")
+                st.write(f"가중평균: {grade_analysis['1학기']['가중_평균']:.2f}")
+                st.write(f"단순평균: {grade_analysis['1학기']['단순_평균']:.2f}")
+            
+            with col2:
+                st.markdown("#### 2학기")
+                st.write(f"가중평균: {grade_analysis['2학기']['가중_평균']:.2f}")
+                st.write(f"단순평균: {grade_analysis['2학기']['단순_평균']:.2f}")
+            
+            st.markdown("#### 전체 평균")
+            st.write(f"주요과목(국영수사과) 평균: {grade_analysis['전체']['주요과목_평균']:.2f}")
+            st.write(f"전체과목 평균: {grade_analysis['전체']['전체과목_평균']:.2f}")
+        
+        # Gemini 분석 수행
+        analysis_results = analyze_student_record(student_info, original_data)
+        
+        if "error" not in analysis_results:
+            st.header("분석 결과")
+            
+            # 학생 프로필
+            st.subheader("학생 프로필")
+            st.write(analysis_results["학생_프로필"]["기본_정보"])
+            
+            # 강점
+            st.markdown("#### 강점")
+            for strength in analysis_results["학생_프로필"]["강점"]:
+                st.markdown(f"- {strength}")
+            
+            # 진로 적합성
+            st.subheader("진로 적합성 분석")
+            st.write(analysis_results["진로_적합성"]["분석_결과"])
+            
+            # 추천 진로
+            st.markdown("#### 추천 진로")
+            for option in analysis_results["진로_적합성"]["추천_진로"]:
+                st.markdown(f"- {option}")
+            
+            # 학업 발전 전략
+            st.subheader("학업 발전 전략")
+            st.write(analysis_results["학업_발전_전략"]["분석_결과"])
+            
+            # 개선 전략
+            st.markdown("#### 개선 전략")
+            for strategy in analysis_results["학업_발전_전략"]["개선_전략"]:
+                st.markdown(f"- {strategy}")
+            
+            # 진로 로드맵
+            st.subheader("진로 로드맵")
+            
+            # 단기 목표
+            st.markdown("#### 단기 목표")
+            for goal in analysis_results["진로_로드맵"]["단기_목표"]:
+                st.markdown(f"- {goal}")
+            
+            # 중기 목표
+            st.markdown("#### 중기 목표")
+            for goal in analysis_results["진로_로드맵"]["중기_목표"]:
+                st.markdown(f"- {goal}")
+            
+            # 장기 목표
+            st.markdown("#### 장기 목표")
+            for goal in analysis_results["진로_로드맵"]["장기_목표"]:
+                st.markdown(f"- {goal}")
+        
+        else:
+            st.error(f"분석 중 오류가 발생했습니다: {analysis_results['error']}")
+        
     except Exception as e:
         st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
 
