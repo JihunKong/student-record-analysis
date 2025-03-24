@@ -174,13 +174,25 @@ with st.sidebar:
 # 메인 컨텐츠 영역
 if uploaded_file:
     try:
+        st.info("파일을 처리 중입니다. 잠시만 기다려주세요...")
+        
         # 파일 처리 및 학생 정보 추출
         special_notes, grades = process_csv_file(uploaded_file)
+        
+        if special_notes.empty and grades.empty:
+            st.error("파일 처리에 실패했습니다. 파일 형식을 확인해주세요.")
+            st.stop()
+            
+        # 디버깅 정보
+        st.write("파일 처리 결과")
+        st.write(f"- 세특 데이터: {len(special_notes)} 행, {len(special_notes.columns)} 열")
+        st.write(f"- 성적 데이터: {len(grades)} 행, {len(grades.columns)} 열")
+        
         student_info = extract_student_info(special_notes, grades)
         
         # 학생 정보가 비어있으면 예외 발생
-        if not student_info:
-            st.error("학생 정보를 추출할 수 없습니다.")
+        if not student_info or not student_info.get('special_notes', {}).get('subjects'):
+            st.warning("학생 정보를 충분히 추출할 수 없습니다. 일부 기능이 제한될 수 있습니다.")
         else:
             # 탭 생성
             tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])

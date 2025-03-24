@@ -73,11 +73,24 @@ def create_analysis_prompt(student_data: Dict[str, Any]) -> str:
 
 def analyze_with_claude(student_data: Dict[str, Any]) -> str:
     try:
+        # API 키를 환경 변수 또는 streamlit secrets에서 가져오기
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        
+        # 환경 변수에 없는 경우 streamlit secrets에서 시도
+        if not api_key and hasattr(st, 'secrets'):
+            api_key = st.secrets.get("ANTHROPIC_API_KEY")
+        
+        if not api_key:
+            return "API 키가 설정되지 않았습니다. `.env` 파일이나 Streamlit secrets에 ANTHROPIC_API_KEY를 설정해주세요."
+        
+        print("클로드 API로 분석 시작")
         client = anthropic.Anthropic(
-            api_key=st.secrets["ANTHROPIC_API_KEY"]
+            api_key=api_key
         )
         
         prompt = create_analysis_prompt(student_data)
+        print("분석 프롬프트 생성 완료")
+        
         message = client.messages.create(
             model="claude-3-sonnet-20240229",
             max_tokens=4000,
@@ -91,9 +104,13 @@ def analyze_with_claude(student_data: Dict[str, Any]) -> str:
             ]
         )
         
+        print("클로드 API 응답 수신 완료")
         return message.content
         
     except Exception as e:
+        print(f"AI 분석 중 오류가 발생했습니다: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return f"AI 분석 중 오류가 발생했습니다: {str(e)}"
 
 def create_subject_radar_chart(subject_data: Dict[str, Any]) -> go.Figure:

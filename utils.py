@@ -90,6 +90,7 @@ def convert_to_python_type(obj):
 def extract_student_info(special_notes: pd.DataFrame, grades: pd.DataFrame) -> Dict:
     """학생 정보를 추출합니다."""
     try:
+        print("학생 정보 추출 시작...")
         student_info = {}
         
         # 초기 데이터 구조 설정
@@ -104,54 +105,83 @@ def extract_student_info(special_notes: pd.DataFrame, grades: pd.DataFrame) -> D
         
         # 세특 데이터 처리
         if not special_notes.empty:
-            # 첫 번째 행에 있는 컬럼명 사용
+            print(f"세특 데이터 컬럼: {special_notes.columns.tolist()}")
             # 컬럼 구분
             subject_cols = ['국어', '수학', '영어', '한국사', '사회', '과학', '과학탐구실험', '정보', '체육', '음악', '미술']
             activity_cols = ['자율', '동아리', '진로', '행특', '개인']
             career_cols = ['진로희망']
             
+            # 존재하는 컬럼만 필터링
+            existing_subject_cols = [col for col in subject_cols if col in special_notes.columns]
+            existing_activity_cols = [col for col in activity_cols if col in special_notes.columns]
+            existing_career_cols = [col for col in career_cols if col in special_notes.columns]
+            
+            print(f"존재하는 교과 컬럼: {existing_subject_cols}")
+            print(f"존재하는 활동 컬럼: {existing_activity_cols}")
+            print(f"존재하는 진로 컬럼: {existing_career_cols}")
+            
             # 세특 데이터 추출
             for col in special_notes.columns:
-                if col in subject_cols and special_notes[col].notna().any():
-                    # 교과별 세특
-                    val = special_notes[col].dropna().iloc[0] if len(special_notes[col].dropna()) > 0 else ""
-                    if val:
-                        subject_notes[col] = str(val)
-                elif col in activity_cols or any(act in col for act in activity_cols):
-                    # 활동 내역
-                    val = special_notes[col].dropna().iloc[0] if len(special_notes[col].dropna()) > 0 else ""
-                    if val:
-                        activities[col] = str(val)
-                elif col in career_cols:
-                    # 진로 희망
-                    val = special_notes[col].dropna().iloc[0] if len(special_notes[col].dropna()) > 0 else "미정"
-                    if val:
-                        career = str(val)
+                try:
+                    if col in subject_cols and col in special_notes.columns and special_notes[col].notna().any():
+                        # 교과별 세특
+                        val = special_notes[col].dropna().iloc[0] if len(special_notes[col].dropna()) > 0 else ""
+                        if val:
+                            subject_notes[col] = str(val)
+                            print(f"교과 '{col}' 정보 추출 성공")
+                    elif col in activity_cols or any(act in col for act in activity_cols):
+                        # 활동 내역
+                        val = special_notes[col].dropna().iloc[0] if len(special_notes[col].dropna()) > 0 else ""
+                        if val:
+                            activities[col] = str(val)
+                            print(f"활동 '{col}' 정보 추출 성공")
+                    elif col in career_cols:
+                        # 진로 희망
+                        val = special_notes[col].dropna().iloc[0] if len(special_notes[col].dropna()) > 0 else "미정"
+                        if val:
+                            career = str(val)
+                            print(f"진로 희망 '{career}' 추출 성공")
+                except Exception as e:
+                    print(f"컬럼 '{col}' 처리 중 오류: {str(e)}")
+        else:
+            print("세특 데이터가 비어 있습니다.")
         
         # 성적 데이터 처리
         main_subjects = ['국어', '수학', '영어', '사회', '과학', '한국사', '정보']  # 주요 과목 리스트
         
         if not grades.empty:
+            print(f"성적 데이터 컬럼: {grades.columns.tolist()}")
             # 성적 데이터 컬럼 찾기
-            semester_col = '학기' if '학기' in grades.columns else '학 기'
-            subject_col = '과목' if '과목' in grades.columns else '과 목'
+            semester_col = None
+            subject_col = None
             raw_score_col = None
             grade_col = None
             credit_col = None
             
-            # 컬럼 찾기
+            # 컬럼 이름 찾기
             for col in grades.columns:
-                if '석차등급' in col:
-                    grade_col = col
-                elif '원점수' in col:
+                col_str = str(col).lower()
+                if '학기' in col_str:
+                    semester_col = col
+                elif '과목' in col_str:
+                    subject_col = col
+                elif '원점수' in col_str:
                     raw_score_col = col
-                elif '학점수' in col:
+                elif '석차등급' in col_str:
+                    grade_col = col
+                elif '학점수' in col_str:
                     credit_col = col
             
+            print(f"식별된 컬럼 - 학기: {semester_col}, 과목: {subject_col}, 원점수: {raw_score_col}, 등급: {grade_col}, 학점수: {credit_col}")
+            
+            # 필수 컬럼이 없는 경우 오류 메시지 출력
+            if not (semester_col and subject_col):
+                print("필수 컬럼(학기, 과목)을 찾을 수 없습니다.")
+                
             # 성적 데이터 추출
             for _, row in grades.iterrows():
                 try:
-                    if pd.notna(row[semester_col]) and pd.notna(row[subject_col]):
+                    if semester_col and subject_col and pd.notna(row[semester_col]) and pd.notna(row[subject_col]):
                         semester = str(row[semester_col]).strip()
                         subject = str(row[subject_col]).strip()
                         
@@ -162,6 +192,7 @@ def extract_student_info(special_notes: pd.DataFrame, grades: pd.DataFrame) -> D
                                 try:
                                     grade_value = float(str(row[grade_col]).strip())
                                 except ValueError:
+                                    print(f"등급 변환 오류 - 원본값: '{row[grade_col]}'")
                                     grade_value = 0
                             
                             # 원점수
@@ -170,7 +201,8 @@ def extract_student_info(special_notes: pd.DataFrame, grades: pd.DataFrame) -> D
                                 try:
                                     raw_score_text = str(row[raw_score_col]).strip().split('/')[0]
                                     raw_score = float(raw_score_text)
-                                except (ValueError, IndexError):
+                                except (ValueError, IndexError) as e:
+                                    print(f"원점수 변환 오류 - 원본값: '{row[raw_score_col]}', 오류: {str(e)}")
                                     raw_score = 0
                             
                             # 학점수
@@ -179,6 +211,7 @@ def extract_student_info(special_notes: pd.DataFrame, grades: pd.DataFrame) -> D
                                 try:
                                     credit = float(str(row[credit_col]).strip())
                                 except ValueError:
+                                    print(f"학점수 변환 오류 - 원본값: '{row[credit_col]}'")
                                     credit = 1.0
                             
                             # 과목 정보 저장
@@ -189,8 +222,9 @@ def extract_student_info(special_notes: pd.DataFrame, grades: pd.DataFrame) -> D
                                     'credit': credit
                                 }
                                 semester_grades[f'semester{semester}']['grades'][subject] = grade_info
+                                print(f"{semester}학기 '{subject}' 성적 추출: 원점수={raw_score}, 등급={grade_value}, 학점={credit}")
                 except Exception as e:
-                    print(f"행 처리 중 오류: {str(e)}")
+                    print(f"성적 행 처리 중 오류: {str(e)}")
                     continue
             
             # 평균 계산
@@ -199,153 +233,88 @@ def extract_student_info(special_notes: pd.DataFrame, grades: pd.DataFrame) -> D
                 if grades_dict:
                     # 전체 평균 계산
                     total_scores = [g['raw_score'] for g in grades_dict.values()]
-                    if total_scores:
-                        semester_grades[semester]['average']['total'] = sum(total_scores) / len(total_scores)
+                    total_credits = [g['credit'] for g in grades_dict.values()]
                     
-                    # 주요 과목 평균 계산
-                    main_scores = [g['raw_score'] for s, g in grades_dict.items() 
-                                  if any(main_subj in s for main_subj in main_subjects)]
-                    if main_scores:
-                        semester_grades[semester]['average']['main_subjects'] = sum(main_scores) / len(main_scores)
-            
-            # 전체 평균 계산
-            all_scores = []
-            main_subject_scores = []
-            for semester in ['semester1', 'semester2']:
-                grades_dict = semester_grades[semester]['grades']
-                all_scores.extend([g['raw_score'] for g in grades_dict.values()])
-                main_subject_scores.extend([g['raw_score'] for s, g in grades_dict.items() 
-                                          if any(main_subj in s for main_subj in main_subjects)])
-            
-            if all_scores:
-                semester_grades['total']['average']['total'] = sum(all_scores) / len(all_scores)
-            if main_subject_scores:
-                semester_grades['total']['average']['main_subjects'] = sum(main_subject_scores) / len(main_subject_scores)
-            
-            # 개별 학기 과목 정보도 추가 (새로운 형식 호환)
-            if semester_col and subject_col:
-                for semester in ['1', '2']:
-                    sem_data = grades[grades[semester_col] == int(semester)]
-                    subjects = []
+                    if total_scores and total_credits:
+                        # 학점 가중 평균
+                        weighted_sum = sum(score * credit for score, credit in zip(total_scores, total_credits))
+                        total_credit = sum(total_credits)
+                        semester_grades[semester]['average']['total'] = weighted_sum / total_credit if total_credit > 0 else 0
+                        
+                        # 주요 과목 평균 계산
+                        main_subject_scores = [grades_dict[subject]['raw_score'] for subject in grades_dict if subject in main_subjects]
+                        main_subject_credits = [grades_dict[subject]['credit'] for subject in grades_dict if subject in main_subjects]
+                        
+                        if main_subject_scores and main_subject_credits:
+                            main_weighted_sum = sum(score * credit for score, credit in zip(main_subject_scores, main_subject_credits))
+                            main_total_credit = sum(main_subject_credits)
+                            semester_grades[semester]['average']['main_subjects'] = main_weighted_sum / main_total_credit if main_total_credit > 0 else 0
                     
-                    for _, row in sem_data.iterrows():
-                        subject_info = {}
-                        subject_info['과목'] = row[subject_col] if pd.notna(row[subject_col]) else ''
-                        
-                        # 교과 컬럼이 있으면 추가
-                        dept_col = '교과' if '교과' in grades.columns else '교 과'
-                        if dept_col in grades.columns:
-                            subject_info['교과'] = row[dept_col] if pd.notna(row[dept_col]) else ''
-                        
-                        # 성취도 컬럼이 있으면 추가
-                        achievement_col = None
-                        for col in grades.columns:
-                            if '성취도' in col:
-                                achievement_col = col
-                                break
-                        
-                        if achievement_col:
-                            ach_val = row[achievement_col] if pd.notna(row[achievement_col]) else ''
-                            if '(' in str(ach_val):
-                                subject_info['성취도'] = str(ach_val).split('(')[0].strip()
-                            else:
-                                subject_info['성취도'] = str(ach_val)
-                        
-                        # 석차등급 추가
-                        if grade_col:
-                            subject_info['석차등급'] = row[grade_col] if pd.notna(row[grade_col]) else ''
-                        
-                        subjects.append(subject_info)
-                    
-                    student_info[f'{semester}_subjects'] = subjects
+                    print(f"{semester} 전체 평균: {semester_grades[semester]['average']['total']:.2f}")
+                    print(f"{semester} 주요과목 평균: {semester_grades[semester]['average']['main_subjects']:.2f}")
+        else:
+            print("성적 데이터가 비어 있습니다.")
         
-        # 결과 구조 설정
-        student_info['special_notes'] = {
-            'subjects': subject_notes,
-            'activities': activities
+        # 전체 평균 계산
+        total_semester1 = semester_grades['semester1']['average']['total']
+        total_semester2 = semester_grades['semester2']['average']['total']
+        
+        if total_semester1 > 0 and total_semester2 > 0:
+            semester_grades['total']['average']['total'] = (total_semester1 + total_semester2) / 2
+        elif total_semester1 > 0:
+            semester_grades['total']['average']['total'] = total_semester1
+        elif total_semester2 > 0:
+            semester_grades['total']['average']['total'] = total_semester2
+            
+        # 주요 과목 전체 평균 계산
+        main_semester1 = semester_grades['semester1']['average']['main_subjects']
+        main_semester2 = semester_grades['semester2']['average']['main_subjects']
+        
+        if main_semester1 > 0 and main_semester2 > 0:
+            semester_grades['total']['average']['main_subjects'] = (main_semester1 + main_semester2) / 2
+        elif main_semester1 > 0:
+            semester_grades['total']['average']['main_subjects'] = main_semester1
+        elif main_semester2 > 0:
+            semester_grades['total']['average']['main_subjects'] = main_semester2
+            
+        print(f"전체 평균: {semester_grades['total']['average']['total']:.2f}")
+        print(f"주요과목 전체 평균: {semester_grades['total']['average']['main_subjects']:.2f}")
+        
+        # 결과 조합
+        student_info = {
+            'special_notes': {
+                'subjects': subject_notes,
+                'activities': activities,
+                'career': career
+            },
+            'academic_records': semester_grades,
+            'career_aspiration': career
         }
-        student_info['academic_records'] = semester_grades
-        student_info['career_aspiration'] = career
         
-        # 평균 정보 추가
-        student_info.update({
-            # 전체 과목 평균
-            'first_semester_average': semester_grades['semester1']['average']['total'],
-            'second_semester_average': semester_grades['semester2']['average']['total'],
-            'total_average': semester_grades['total']['average']['total'],
-            
-            # 주요 과목 평균
-            'first_semester_main_average': semester_grades['semester1']['average']['main_subjects'],
-            'second_semester_main_average': semester_grades['semester2']['average']['main_subjects'],
-            'total_main_average': semester_grades['total']['average']['main_subjects']
-        })
-        
-        # 가중 평균 계산 및 추가
-        # 먼저 1학기 가중 평균
-        first_sem_weighted = 0
-        first_sem_credits = 0
-        for subject, data in semester_grades['semester1']['grades'].items():
-            credit = data.get('credit', 1.0)
-            rank = data.get('rank', 0)
-            if rank > 0:
-                first_sem_weighted += rank * credit
-                first_sem_credits += credit
-        
-        # 2학기 가중 평균
-        second_sem_weighted = 0
-        second_sem_credits = 0
-        for subject, data in semester_grades['semester2']['grades'].items():
-            credit = data.get('credit', 1.0)
-            rank = data.get('rank', 0)
-            if rank > 0:
-                second_sem_weighted += rank * credit
-                second_sem_credits += credit
-        
-        # 가중 평균 계산 및 저장
-        student_info['first_semester_weighted_average'] = first_sem_weighted / first_sem_credits if first_sem_credits > 0 else 0
-        student_info['second_semester_weighted_average'] = second_sem_weighted / second_sem_credits if second_sem_credits > 0 else 0
-        student_info['total_weighted_average'] = (student_info['first_semester_weighted_average'] + 
-                                                 student_info['second_semester_weighted_average']) / 2 if (first_sem_credits > 0 and second_sem_credits > 0) else 0
-        
-        # 주요 과목 가중 평균
-        first_sem_main_weighted = 0
-        first_sem_main_credits = 0
-        for subject, data in semester_grades['semester1']['grades'].items():
-            if any(main_subj in subject for main_subj in main_subjects):
-                credit = data.get('credit', 1.0)
-                rank = data.get('rank', 0)
-                if rank > 0:
-                    first_sem_main_weighted += rank * credit
-                    first_sem_main_credits += credit
-        
-        second_sem_main_weighted = 0
-        second_sem_main_credits = 0
-        for subject, data in semester_grades['semester2']['grades'].items():
-            if any(main_subj in subject for main_subj in main_subjects):
-                credit = data.get('credit', 1.0)
-                rank = data.get('rank', 0)
-                if rank > 0:
-                    second_sem_main_weighted += rank * credit
-                    second_sem_main_credits += credit
-        
-        # 주요 과목 가중 평균 저장
-        student_info['first_semester_main_weighted_average'] = first_sem_main_weighted / first_sem_main_credits if first_sem_main_credits > 0 else 0
-        student_info['second_semester_main_weighted_average'] = second_sem_main_weighted / second_sem_main_credits if second_sem_main_credits > 0 else 0
-        student_info['total_main_weighted_average'] = (student_info['first_semester_main_weighted_average'] + 
-                                                      student_info['second_semester_main_weighted_average']) / 2 if (first_sem_main_credits > 0 and second_sem_main_credits > 0) else 0
+        # 디버깅용 데이터 구조 출력
+        print("학생 정보 추출 완료")
+        print(f"추출된 교과 정보: {len(subject_notes)}개")
+        print(f"추출된 활동 정보: {len(activities)}개")
+        print(f"진로 희망: {career}")
         
         return student_info
         
     except Exception as e:
-        print(f"디버그 정보 - 학생 정보 추출: {str(e)}")
+        print(f"학생 정보 추출 중 예외 발생: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {
-            'special_notes': {'subjects': {}, 'activities': {}},
+            'special_notes': {
+                'subjects': {},
+                'activities': {},
+                'career': "미정"
+            },
             'academic_records': {
                 'semester1': {'grades': {}, 'average': {'total': 0.0, 'main_subjects': 0.0}},
                 'semester2': {'grades': {}, 'average': {'total': 0.0, 'main_subjects': 0.0}},
                 'total': {'average': {'total': 0.0, 'main_subjects': 0.0}}
             },
-            'career_aspiration': '미정'
+            'career_aspiration': "미정"
         }
 
 def create_downloadable_report(content: Dict[str, Any], original_data: str, filename: str = "분석_보고서.md") -> str:
@@ -545,25 +514,52 @@ def create_radar_chart(categories: Dict[str, float]) -> plt.Figure:
 def process_csv_file(file) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """CSV 파일을 처리하여 세특 데이터와 성적 데이터를 분리합니다."""
     try:
-        # 첫 번째 행을 헤더로 사용하여 파일 읽기
-        df = pd.read_csv(file, encoding='utf-8')
+        # 여러 인코딩 방식 시도
+        encodings = ['utf-8', 'utf-8-sig', 'cp949', 'euc-kr']
+        df = None
+        
+        for encoding in encodings:
+            try:
+                # 파일 포인터 위치 초기화 (파일 객체인 경우)
+                if hasattr(file, 'seek'):
+                    file.seek(0)
+                
+                # 해당 인코딩으로 시도
+                df = pd.read_csv(file, encoding=encoding)
+                print(f"성공적으로 파일 읽음: 인코딩 {encoding}")
+                break
+            except UnicodeDecodeError:
+                print(f"인코딩 {encoding}으로 파일 읽기 실패, 다음 인코딩 시도...")
+                continue
+            except Exception as e:
+                print(f"파일 읽기 오류: {str(e)}")
+                continue
+        
+        if df is None:
+            raise Exception("모든 인코딩으로 파일 읽기 실패")
         
         # 빈 행과 열 제거
         df = df.dropna(how='all')
         df = df.dropna(axis=1, how='all')
         
+        # 데이터 확인용 디버깅 출력
+        print(f"데이터프레임 컬럼: {df.columns.tolist()}")
+        print(f"데이터프레임 행 수: {len(df)}")
+        
         # 성적 데이터 부분 찾기 (학기 열이 있는 행부터)
         grade_rows = []
         for i, row in df.iterrows():
             for col in row.index:
-                if pd.notna(row[col]) and '학기' in str(row[col]):
+                if pd.notna(row[col]) and isinstance(row[col], str) and '학기' in row[col]:
                     grade_rows = list(range(i, len(df)))
+                    print(f"성적 데이터 시작 행 발견: {i}")
                     break
             if grade_rows:
                 break
         
         if not grade_rows:
             # 성적 데이터를 찾을 수 없는 경우
+            print("성적 데이터를 찾을 수 없음, 전체를 세특 데이터로 처리")
             special_notes = df.copy()
             grades = pd.DataFrame()
         else:
@@ -583,11 +579,16 @@ def process_csv_file(file) -> Tuple[pd.DataFrame, pd.DataFrame]:
                     column_names.append(col)
             
             grades = pd.DataFrame(grade_data.values, columns=column_names)
+            
+            print(f"세특 데이터 행 수: {len(special_notes)}")
+            print(f"성적 데이터 행 수: {len(grades)}")
         
         return special_notes, grades
         
     except Exception as e:
-        print(f"디버그 정보: {str(e)}")
+        print(f"CSV 파일 처리 중 오류 발생: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return pd.DataFrame(), pd.DataFrame()
 
 def create_analysis_prompt(csv_content: str) -> str:
