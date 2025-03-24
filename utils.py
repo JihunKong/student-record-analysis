@@ -436,53 +436,81 @@ def create_radar_chart(categories: Dict[str, float]) -> plt.Figure:
     
     return fig
 
-def process_csv_file(file):
-    """CSV 파일을 처리하여 데이터프레임으로 반환합니다."""
+def process_csv_file(file_path):
     try:
-        # CSV 파일 읽기 (헤더 없이)
-        df = pd.read_csv(file, header=None)
-        
-        # 빈 행과 열 제거
-        df = df.dropna(how='all').dropna(axis=1, how='all')
-        
-        # 세특 구분 행 찾기 (첫 번째 열에 '세부능력 및 특기사항'이 있는 행)
-        setech_rows = df[df.iloc[:, 0].str.contains('세부능력 및 특기사항', na=False)].index
-        grade_rows = df[df.iloc[:, 0].str.contains('^학.?기$', na=False, regex=True)].index
-        
-        if len(setech_rows) > 0 and len(grade_rows) > 0:
-            setech_start = setech_rows[0]
-            grade_start = grade_rows[0]
-            
-            # 세특 데이터 추출
-            setech_data = df.iloc[setech_start:grade_start].copy()
-            
-            # 성적 데이터 추출
-            grade_data = df.iloc[grade_start:].copy()
-            
-            # 성적 데이터 컬럼 설정
-            grade_columns = ['학 기', '교 과', '과 목', '학점수', '원점수/과목평균\n (표준편차)', '성취도\n (수강자수)', '석차등급']
-            grade_data.columns = grade_columns[:len(grade_data.columns)]
-            
-            # 결과 데이터프레임 생성
-            result_df = pd.concat([setech_data, grade_data], axis=0, ignore_index=True)
-            return result_df
-            
-        elif len(setech_rows) > 0:
-            # 세특 데이터만 있는 경우
-            return df.iloc[setech_rows[0]:].copy()
-            
-        elif len(grade_rows) > 0:
-            # 성적 데이터만 있는 경우
-            grade_data = df.iloc[grade_rows[0]:].copy()
-            grade_columns = ['학 기', '교 과', '과 목', '학점수', '원점수/과목평균\n (표준편차)', '성취도\n (수강자수)', '석차등급']
-            grade_data.columns = grade_columns[:len(grade_data.columns)]
-            return grade_data
-        
-        return df
-        
+        df = pd.read_csv(file_path)
+        return extract_student_info(df)
     except Exception as e:
-        print(f"CSV 파일 처리 중 오류 발생: {str(e)}")  # 디버깅을 위한 출력 추가
-        raise Exception(f"CSV 파일 처리 중 오류 발생: {str(e)}")
+        raise Exception(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
+
+def extract_student_info(df):
+    student_data = {
+        'academic_records': {
+            'semester1': {'grades': {}, 'details': {}},
+            'semester2': {'grades': {}, 'details': {}}
+        },
+        'special_notes': {
+            'subjects': {},
+            'activities': {},
+            'career': {}
+        }
+    }
+
+    # 주요 과목 정의
+    main_subjects = ['국어', '수학', '영어', '사회', '과학']
+    all_subjects = main_subjects + ['한국사', '정보']
+
+    # 세특 데이터 추출 (0-7번 행)
+    for idx, row in df.iloc[0:8].iterrows():
+        subject = row['국어']  # 첫 번째 열이 과목명
+        content = row['수학']  # 두 번째 열이 세특 내용
+        if pd.notna(subject) and pd.notna(content):
+            student_data['special_notes']['subjects'][subject] = content
+
+    # 성적 데이터 추출 (마지막 16개 행)
+    grade_data = df.iloc[-16:].copy()
+    
+    for _, row in grade_data.iterrows():
+        semester = int(row['학 기'])
+        subject = row['과 목']
+        semester_key = f'semester{semester}'
+        
+        if subject in all_subjects:
+            grade_info = {
+                'credit': float(row['학점수']),
+                'raw_score': float(row['원점수/과목평균'].split('/')[0]),
+                'class_average': float(row['원점수/과목평균'].split('/')[1].split('(')[0]),
+                'std_dev': float(row['원점수/과목평균'].split('(')[1].rstrip(')')),
+                'achievement': row['성취도 (수강자수)'].split('(')[0],
+                'rank': int(row['석차등급']) if pd.notna(row['석차등급']) else None
+            }
+            student_data['academic_records'][semester_key]['grades'][subject] = grade_info
+
+    # 평균 계산
+    for semester in ['semester1', 'semester2']:
+        grades = student_data['academic_records'][semester]['grades']
+        
+        # 전체 과목 평균
+        total_credits = sum(g['credit'] for g in grades.values())
+        weighted_sum = sum(g['raw_score'] * g['credit'] for g in grades.values())
+        total_average = weighted_sum / total_credits if total_credits > 0 else 0
+        
+        # 주요 과목 평균
+        main_credits = sum(g['credit'] for s, g in grades.items() if s in main_subjects)
+        main_weighted_sum = sum(g['raw_score'] * g['credit'] for s, g in grades.items() if s in main_subjects)
+        main_average = main_weighted_sum / main_credits if main_credits > 0 else 0
+        
+        student_data['academic_records'][semester]['average'] = {
+            'total': round(total_average, 2),
+            'main_subjects': round(main_average, 2)
+        }
+
+    # 진로 희망 데이터 추출
+    career = df.iloc[0]['진로희망']
+    if pd.notna(career):
+        student_data['special_notes']['career'] = career
+
+    return student_data
 
 def create_analysis_prompt(csv_content: str) -> str:
     """분석을 위한 프롬프트를 생성합니다."""

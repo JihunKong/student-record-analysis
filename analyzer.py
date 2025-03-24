@@ -111,97 +111,76 @@ def create_prompt_for_career_roadmap(student_data: Dict[str, Any]) -> str:
     """
     return prompt
 
-def analyze_with_gemini(data: str) -> dict:
-    """Gemini API를 사용하여 학생 데이터를 분석합니다."""
-    try:
-        # 프롬프트 생성
-        prompt = f"""
-다음은 학생의 생활기록부 데이터입니다. 이 데이터를 분석하여 학생의 특성과 진로 적합성을 파악해주세요.
-분석 결과는 반드시 다음과 같은 JSON 형식으로 작성해주세요:
+def create_analysis_prompt(student_data: Dict[str, Any]) -> str:
+    # 성적 데이터 요약
+    grades_summary = []
+    for semester in ['semester1', 'semester2']:
+        semester_data = student_data['academic_records'][semester]
+        grades = semester_data['grades']
+        averages = semester_data['average']
+        
+        semester_summary = f"{semester.replace('semester', '')}학기:\n"
+        semester_summary += f"- 전체 평균: {averages['total']:.1f}\n"
+        semester_summary += f"- 주요과목 평균: {averages['main_subjects']:.1f}\n"
+        semester_summary += "- 과목별 등급:\n"
+        
+        for subject, grade in grades.items():
+            semester_summary += f"  * {subject}: {grade['rank']}등급 (원점수: {grade['raw_score']:.1f})\n"
+        
+        grades_summary.append(semester_summary)
 
-{{
-    "학생_프로필": {{
-        "기본_정보": "학생의 전반적인 특성을 한 문단으로 요약",
-        "강점": ["주요 강점 1", "주요 강점 2", "주요 강점 3"],
-        "약점": ["개선이 필요한 부분 1", "개선이 필요한 부분 2"],
-        "학업_패턴": "학업 성향과 패턴 분석"
-    }},
-    "강점_분석": {{
-        "교과_영역": ["교과 관련 강점 1", "교과 관련 강점 2"],
-        "비교과_영역": ["비교과 활동 강점 1", "비교과 활동 강점 2"],
-        "종합_평가": "전반적인 강점 분석 결과"
-    }},
-    "진로_적합성": {{
-        "분석_결과": "진로 적합성에 대한 종합적 분석",
-        "추천_진로": ["추천 진로 1", "추천 진로 2", "추천 진로 3"],
-        "진로_로드맵": "구체적인 진로 준비 계획"
-    }},
-    "개선_방향": {{
-        "학업_영역": ["개선점 1", "개선점 2"],
-        "활동_영역": ["활동 제안 1", "활동 제안 2"],
-        "종합_제언": "전반적인 개선 방향 제시"
-    }}
-}}
+    # 세특 데이터 요약
+    special_notes = []
+    for subject, content in student_data['special_notes']['subjects'].items():
+        special_notes.append(f"[{subject}]\n{content}\n")
 
-분석 시 다음 사항을 고려해주세요:
-1. 객관적인 데이터를 기반으로 분석해주세요.
-2. 긍정적인 관점에서 학생의 가능성을 발견해주세요.
-3. 구체적이고 실행 가능한 제안을 해주세요.
-4. 학생의 강점을 최대한 살리는 방향으로 분석해주세요.
+    # 진로 희망
+    career = student_data['special_notes'].get('career', '미정')
 
-분석할 데이터:
-{data}
+    prompt = f"""
+다음은 한 학생의 학업 데이터입니다. 이를 바탕으로 학생의 특성과 발전 가능성을 분석해주세요.
+
+1. 성적 데이터
+{'\n'.join(grades_summary)}
+
+2. 세부능력 및 특기사항
+{'\n'.join(special_notes)}
+
+3. 진로 희망: {career}
+
+위 데이터를 바탕으로 다음 항목들을 분석해주세요:
+
+1. 학업 역량 분석
+- 전반적인 학업 수준과 발전 추이
+- 과목별 특징과 강점
+- 학습 태도와 참여도
+
+2. 진로 적합성 분석
+- 희망 진로와 현재 역량의 연관성
+- 진로 실현을 위한 준비 상태
+- 발전 가능성과 보완이 필요한 부분
+
+3. 종합 제언
+- 학생의 주요 강점과 특징
+- 향후 발전을 위한 구체적 조언
+- 진로 실현을 위한 추천 활동
+
+분석은 객관적 데이터를 기반으로 하되, 긍정적이고 발전적인 관점에서 작성해주세요.
 """
+    return prompt
 
-        # Gemini API 호출
-        model = genai.GenerativeModel('gemini-1.5-pro-002')
+def analyze_with_gemini(student_data: Dict[str, Any]) -> str:
+    try:
+        genai.configure(api_key='your_api_key')
+        model = genai.GenerativeModel('gemini-pro')
+        
+        prompt = create_analysis_prompt(student_data)
         response = model.generate_content(prompt)
         
-        # 응답에서 JSON 블록 추출
-        json_pattern = r'\{[\s\S]*\}'
-        json_match = re.search(json_pattern, response.text)
+        return response.text
         
-        if json_match:
-            json_str = json_match.group()
-            try:
-                return json.loads(json_str)
-            except json.JSONDecodeError as e:
-                print(f"JSON 파싱 오류: {str(e)}")
-                print(f"파싱 실패한 문자열: {json_str}")
-                return {
-                    "학생_프로필": {
-                        "기본_정보": "분석 중 오류가 발생했습니다.",
-                        "강점": [],
-                        "약점": [],
-                        "학업_패턴": "분석 중 오류가 발생했습니다."
-                    },
-                    "강점_분석": {
-                        "교과_영역": [],
-                        "비교과_영역": [],
-                        "종합_평가": "분석 중 오류가 발생했습니다."
-                    },
-                    "진로_적합성": {
-                        "분석_결과": "분석 중 오류가 발생했습니다.",
-                        "추천_진로": [],
-                        "진로_로드맵": "분석 중 오류가 발생했습니다."
-                    },
-                    "개선_방향": {
-                        "학업_영역": [],
-                        "활동_영역": [],
-                        "종합_제언": "분석 중 오류가 발생했습니다."
-                    }
-                }
-        else:
-            print("JSON 블록을 찾을 수 없습니다.")
-            return {
-                "error": "AI 분석 결과를 처리할 수 없습니다."
-            }
-            
     except Exception as e:
-        print(f"분석 중 오류 발생: {str(e)}")
-        return {
-            "error": f"분석 중 오류가 발생했습니다: {str(e)}"
-        }
+        return f"AI 분석 중 오류가 발생했습니다: {str(e)}"
 
 def create_subject_radar_chart(subject_data: Dict[str, Any]) -> go.Figure:
     """교과별 성취도를 레이더 차트로 시각화합니다."""
@@ -396,10 +375,10 @@ def analyze_student_record(student_data: Dict[str, Any], original_data: str = ""
         roadmap_prompt = create_prompt_for_career_roadmap(student_data)
         
         # 각 분석 수행
-        profile_analysis = analyze_with_gemini(profile_prompt)
-        career_analysis = analyze_with_gemini(career_prompt)
-        academic_analysis = analyze_with_gemini(academic_prompt)
-        roadmap_analysis = analyze_with_gemini(roadmap_prompt)
+        profile_analysis = analyze_with_gemini(student_data)
+        career_analysis = analyze_with_gemini(student_data)
+        academic_analysis = analyze_with_gemini(student_data)
+        roadmap_analysis = analyze_with_gemini(student_data)
         
         # 분석 결과 통합
         if "error" not in profile_analysis:
