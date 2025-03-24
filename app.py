@@ -29,8 +29,8 @@ if not GEMINI_API_KEY:
     st.error("GitHub 환경변수에 GEMINI_API_KEY가 설정되지 않았습니다.")
     st.stop()
 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.0-pro', generation_config={
+genai.configure(api_key=GEMINI_API_KEY, api_version='v1')
+model = genai.GenerativeModel('gemini-pro', generation_config={
     'temperature': 0.7,
     'top_p': 0.8,
     'top_k': 40,
