@@ -275,21 +275,8 @@ def main():
         try:
             st.info("파일을 처리 중입니다. 잠시만 기다려주세요...")
             
-            # 파일 처리 및 학생 정보 추출
+            # 파일 처리 및 학생 정보 추출 (AI 분석 포함)
             student_info = process_uploaded_file(uploaded_file)
-            
-            # CSV 내용 직접 분석
-            try:
-                if 'analyze_csv_directly' not in locals() and 'analyze_csv_directly' not in globals():
-                    from analyzer import analyze_csv_directly
-                
-                # 파일 내용 읽기
-                file_content = uploaded_file.getvalue().decode('utf-8')
-                analysis_result = analyze_csv_directly(file_content)
-                student_info["ai_analysis"] = analysis_result
-            except Exception as e:
-                st.error(f"AI 분석 중 오류가 발생했습니다: {str(e)}")
-                student_info["ai_analysis"] = "분석 중 오류가 발생했습니다."
             
             # 학생 정보가 비어있으면 예외 발생
             if not student_info:
@@ -635,19 +622,10 @@ def main():
                 with tab4:
                     st.markdown('<h2 class="section-header">🤖 AI 분석</h2>', unsafe_allow_html=True)
                     
-                    if "ai_analysis" in student_info:
+                    if "ai_analysis" in student_info and student_info["ai_analysis"]:
                         st.markdown(student_info["ai_analysis"])
                     else:
-                        try:
-                            # 분석 결과 가져오기
-                            analysis_result = analyze_student_record(student_info)
-                            
-                            if "analysis" in analysis_result:
-                                st.markdown(analysis_result["analysis"])
-                            else:
-                                st.error("AI 분석 결과를 가져올 수 없습니다.")
-                        except Exception as e:
-                            st.error(f"AI 분석 중 오류가 발생했습니다: {str(e)}")
+                        st.info("AI 분석 결과가 없습니다. 파일을 다시 업로드하거나 나중에 다시 시도해주세요.")
         
         except Exception as e:
             st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
