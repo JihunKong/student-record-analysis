@@ -239,6 +239,24 @@ def main():
         if uploaded_file is not None:
             st.success("파일이 성공적으로 업로드되었습니다!")
         
+        # API 키 입력 섹션 추가
+        st.write("### API 설정")
+        api_key = st.text_input("OpenAI API 키를 입력하세요", type="password")
+        if api_key:
+            os.environ["OPENAI_API_KEY"] = api_key
+            st.success("API 키가 설정되었습니다!")
+        
+        # API 키 설정 방법 안내
+        with st.expander("API 키 설정 방법"):
+            st.markdown("""
+            1. 위의 입력 필드에 OpenAI API 키를 직접 입력하세요.
+            2. 환경 변수에 `OPENAI_API_KEY`를 설정하세요.
+            3. `.streamlit/secrets.toml` 파일에 다음과 같이 설정하세요:
+               ```
+               OPENAI_API_KEY = "your-api-key"
+               ```
+            """)
+        
         st.markdown("---")
         st.markdown("© 2025 학생부 분석기 Made by 공지훈")
     
