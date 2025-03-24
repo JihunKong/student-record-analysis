@@ -436,25 +436,36 @@ def create_radar_chart(categories: Dict[str, float]) -> plt.Figure:
     
     return fig
 
-def process_csv_file(file) -> pd.DataFrame:
+def process_csv_file(file) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """CSV 파일을 처리하여 세특 데이터와 성적 데이터를 분리합니다."""
     try:
-        # 전체 파일 읽기
-        df = pd.read_csv(file, encoding='utf-8')
+        # 전체 파일 읽기 (헤더 없이)
+        df = pd.read_csv(file, header=None, encoding='utf-8')
         
-        # 빈 행을 기준으로 세특 데이터와 성적 데이터 분리
-        special_notes = df.iloc[:2]  # 세특 데이터 (헤더 포함 2행)
+        # 빈 행과 열 제거
+        df = df.dropna(how='all')
+        df = df.dropna(axis=1, how='all')
         
-        # 성적 데이터 찾기 (학기 컬럼이 있는 행부터)
-        grade_start_idx = df[df.iloc[:, 0] == '학 기'].index[0]
-        grades = df.iloc[grade_start_idx:]
+        # 성적 데이터 시작점 찾기 ('학 기' 또는 '학기'가 있는 행)
+        grade_start_idx = None
+        for idx, row in df.iterrows():
+            if any(str(cell).strip() in ['학 기', '학기'] for cell in row):
+                grade_start_idx = idx
+                break
+                
+        if grade_start_idx is None:
+            raise Exception("성적 데이터를 찾을 수 없습니다.")
         
-        # 성적 데이터의 컬럼명 재설정
-        grade_columns = ['학기', '교과', '과목', '학점수', '원점수/과목평균(표준편차)', 
-                        '성취도(수강자수)', '석차등급']
-        grades.columns = grade_columns
+        # 세특 데이터와 성적 데이터 분리
+        special_notes = df.iloc[:grade_start_idx].copy()
+        grades = df.iloc[grade_start_idx:].copy()
+        
+        # 성적 데이터의 첫 번째 행을 헤더로 설정
+        grades.columns = grades.iloc[0]
+        grades = grades.iloc[1:]
         
         return special_notes, grades
+        
     except Exception as e:
         raise Exception(f"CSV 파일 처리 중 오류가 발생했습니다: {str(e)}")
 
