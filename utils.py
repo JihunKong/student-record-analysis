@@ -347,26 +347,59 @@ def create_radar_chart(categories: Dict[str, float]) -> plt.Figure:
     
     return fig
 
-def process_csv_file(file, encoding='utf-8-sig'):
+def process_csv_file(file):
     """CSV 파일을 처리하여 데이터프레임으로 반환합니다."""
     try:
-        # CSV 파일 읽기
-        df = pd.read_csv(file, encoding=encoding)
+        # CSV 파일 읽기 (헤더 없이)
+        df = pd.read_csv(file, header=None)
         
         # 빈 행과 열 제거
         df = df.dropna(how='all').dropna(axis=1, how='all')
         
-        # 첫 번째 유효한 행을 열 이름으로 설정
-        first_valid_row = df.iloc[0]
-        df.columns = first_valid_row
-        df = df.iloc[1:]
+        # 세특 구분 행 찾기 (첫 번째 열에 '세부능력 및 특기사항'이 있는 행)
+        setech_row = df[df.iloc[:, 0].str.contains('세부능력 및 특기사항', na=False)].index
         
-        # 인덱스 재설정
-        df = df.reset_index(drop=True)
+        if len(setech_row) > 0:
+            setech_start = setech_row[0]
+            
+            # 성적 데이터 섹션 찾기 ('학 기' 또는 '학기'가 있는 행)
+            grade_row = df[df.iloc[:, 0].str.contains('^학.?기$', na=False, regex=True)].index
+            
+            if len(grade_row) > 0:
+                grade_start = grade_row[0]
+                
+                # 세특 데이터 추출 (세특 시작 행부터 성적 데이터 시작 행 전까지)
+                setech_data = df.iloc[setech_start+1:grade_start].copy()
+                
+                # 세특 데이터의 첫 번째 행을 컬럼으로 설정
+                setech_data.columns = setech_data.iloc[0]
+                setech_data = setech_data.iloc[1:]
+                
+                # 성적 데이터 추출
+                grade_data = df.iloc[grade_start:].copy()
+                
+                # 성적 데이터 컬럼 설정
+                grade_columns = ['학 기', '교 과', '과 목', '학점수', '원점수/과목평균\n (표준편차)', '성취도\n (수강자수)', '석차등급']
+                grade_data.columns = grade_data.columns[:len(grade_columns)]
+                grade_data = grade_data.iloc[1:]  # 헤더 행 제외
+                
+                # 두 데이터프레임 합치기
+                result_df = pd.concat([setech_data, grade_data], ignore_index=True)
+                return result_df
+            
+            else:
+                # 성적 데이터가 없는 경우 세특 데이터만 반환
+                setech_data = df.iloc[setech_start+1:].copy()
+                setech_data.columns = setech_data.iloc[0]
+                setech_data = setech_data.iloc[1:]
+                return setech_data
         
-        return df
+        else:
+            # 세특 구분이 없는 경우 원본 데이터 반환
+            return df
         
     except Exception as e:
+        print(f"CSV 파일 처리 중 오류 발생: {str(e)}")  # 디버깅을 위한 출력 추가
         raise Exception(f"CSV 파일 처리 중 오류 발생: {str(e)}")
 
 def create_analysis_prompt(csv_content: str) -> str:
