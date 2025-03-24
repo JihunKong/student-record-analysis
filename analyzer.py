@@ -459,81 +459,86 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
             anthropic_api_key = st.secrets["anthropic"]["api_key"]
         
         if not anthropic_api_key:
-            return {"analysis": "API 키가 설정되지 않았습니다. .env 파일에 ANTHROPIC_API_KEY를 설정하세요."}
+            return {"analysis": "API 키가 설정되지 않았습니다."}
         
         try:
             import requests
             import logging
+            import json
             
-            # API 엔드포인트
-            api_endpoint = "https://api.anthropic.com/v1/messages"
+            # ASCII 문자만 사용하는 단순한 메시지
+            simple_prompt = "Please analyze the student data and provide insights."
+            simple_system = "Educational expert providing analysis in Korean."
             
-            # 헤더 설정
-            headers = {
-                "Content-Type": "application/json",
-                "X-Api-Key": anthropic_api_key,
-                "anthropic-version": "2023-06-01"
-            }
-            
-            # 메시지 페이로드 - 극도로 단순화
+            # 순수 ASCII 문자로만 구성된 페이로드
             payload = {
                 "model": "claude-3-7-sonnet-20250219",
                 "max_tokens": 4000,
                 "messages": [
                     {
                         "role": "user", 
-                        "content": "Analyze student data and provide a detailed report."
+                        "content": simple_prompt
                     }
                 ],
-                "system": "You are an educational expert. Respond in Korean."
+                "system": simple_system
             }
             
-            # API 요청
+            # JSON 직렬화 - ASCII 설정 명시적 지정
+            json_data = json.dumps(payload, ensure_ascii=True)
+            
+            # 헤더 설정 - 대소문자 일관성 유지
+            headers = {
+                "Content-Type": "application/json",
+                "X-Api-Key": anthropic_api_key,
+                "Anthropic-Version": "2023-06-01"
+            }
+            
+            # API 요청 (문자열 데이터 사용)
             response = requests.post(
-                api_endpoint,
-                json=payload,  # json 파라미터 사용 (자동 직렬화)
+                "https://api.anthropic.com/v1/messages",
+                data=json_data,  # 직렬화된 문자열 사용
                 headers=headers
             )
             
-            # 응답 처리
-            logging.info(f"응답 상태 코드: {response.status_code}")
-            logging.info(f"응답 헤더: {response.headers}")
+            # 응답 처리 (상세 로깅)
+            logging.info(f"API 호출 결과: 상태 코드 {response.status_code}")
             
             if response.status_code == 200:
-                result = response.json()
-                logging.info("API 호출 성공: 응답 받음")
-                
-                if "content" in result:
-                    result_text = ""
-                    for content_item in result["content"]:
-                        if content_item["type"] == "text":
-                            result_text += content_item["text"]
+                try:
+                    # 응답을 JSON으로 파싱
+                    result = response.json()
                     
-                    # 응답이 너무 짧은지 확인
-                    if len(result_text) < 100:
-                        logging.warning(f"API 응답이 너무 짧습니다: {result_text}")
-                        return {"analysis": "API 응답이 너무 짧습니다. 다시 시도해주세요."}
-                    
-                    return {"analysis": result_text}
-                else:
-                    logging.error(f"API 응답에 content 필드가 없습니다: {result}")
-                    return {"analysis": "API 응답 형식이 올바르지 않습니다. 다시 시도해주세요."}
+                    # 결과 추출
+                    if "content" in result and len(result["content"]) > 0:
+                        content_list = result["content"]
+                        result_text = ""
+                        
+                        # 텍스트 컨텐츠 추출
+                        for item in content_list:
+                            if item.get("type") == "text":
+                                result_text += item.get("text", "")
+                        
+                        # 결과 반환
+                        if result_text:
+                            return {"analysis": result_text}
+                        else:
+                            return {"analysis": "분석 결과가 비어있습니다."}
+                    else:
+                        return {"analysis": "API 응답에서 콘텐츠를 찾을 수 없습니다."}
+                except Exception as parse_error:
+                    logging.error(f"응답 파싱 오류: {str(parse_error)}")
+                    return {"analysis": "API 응답 처리 중 오류가 발생했습니다."}
             else:
-                error_msg = f"API 호출 실패 (상태 코드: {response.status_code}): {response.text}"
-                logging.error(error_msg)
-                return {"analysis": f"AI 분석 중 API 오류가 발생했습니다. 상태 코드: {response.status_code}"}
+                error_text = response.text[:200] if response.text else "응답 없음"
+                logging.error(f"API 오류 응답: {error_text}")
+                return {"analysis": f"API 호출 실패 (상태 코드: {response.status_code})"}
                 
         except Exception as e:
             import traceback
-            error_msg = str(e)
-            stacktrace = traceback.format_exc()
-            logging.error(f"API 호출 오류: {error_msg}")
-            logging.error(f"스택 트레이스: {stacktrace}")
-            
-            # 더미 응답 대신 명확한 오류 메시지 반환
-            return {"analysis": f"AI 분석 중 오류가 발생했습니다: {error_msg[:100]}... (오류 로그를 확인하세요)"}
+            logging.error(f"API 호출 예외: {str(e)}")
+            logging.error(traceback.format_exc())
+            return {"analysis": "분석 중 기술적 문제가 발생했습니다."}
         
     except Exception as e:
-        import logging
-        logging.error(f"학생 기록 분석 중 오류 발생: {str(e)}")
-        return {"analysis": f"분석 중 오류가 발생했습니다: {str(e)[:100]}..."} 
+        logging.error(f"전체 프로세스 오류: {str(e)}")
+        return {"analysis": "분석 프로세스를 완료할 수 없습니다."} 
