@@ -578,7 +578,8 @@ def main():
             st.header("🤖 AI 분석")
             
             if "ai_analysis" in student_info and student_info["ai_analysis"]:
-                st.markdown(student_info["ai_analysis"])
+                # 마크다운이 제대로 표시되도록 st.write() 사용
+                st.write(student_info["ai_analysis"])
             else:
                 st.info("AI 분석 결과가 없습니다. 파일을 다시 업로드하거나 나중에 다시 시도해주세요.")
     
