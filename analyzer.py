@@ -110,20 +110,28 @@ def analyze_with_claude(prompt):
             logging.info("Claude API 호출 시작")
             logging.info(f"프롬프트 길이: {len(prompt)}")
             
-            # 인코딩 오류 방지를 위해 API 호출 단순화
+            # 인코딩 오류 방지를 위해 API 호출 수정
             message = client.messages.create(
                 model="claude-3-7-sonnet-20250219",
                 max_tokens=4000,
                 system="당신은 학생 데이터를 분석하는 교육 전문가입니다. 주어진 학생 데이터를 분석하여 학생의 강점, 약점, 진로 적합성 등을 종합적으로 평가해주세요. 항상 한국어로 응답하세요.",
                 messages=[
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": prompt
+                            }
+                        ]
+                    }
                 ]
             )
             
             logging.info("Claude API 응답 수신 완료")
             
-            # 응답 처리 단순화
-            if message.content:
+            # 응답 처리
+            if hasattr(message, 'content') and message.content:
                 result_text = ""
                 for content_item in message.content:
                     if content_item.type == "text":
@@ -251,12 +259,20 @@ def analyze_csv_directly(csv_content):
                 max_tokens=4000,
                 system="당신은 학생 데이터를 분석하는 교육 전문가입니다. 주어진 학생 데이터를 분석하여 학생의 강점, 약점, 진로 적합성 등을 종합적으로 평가해주세요. 항상 한국어로 응답하세요.",
                 messages=[
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": prompt
+                            }
+                        ]
+                    }
                 ]
             )
             
             # 응답 처리
-            if message.content:
+            if hasattr(message, 'content') and message.content:
                 result_text = ""
                 for content_item in message.content:
                     if content_item.type == "text":
@@ -266,12 +282,13 @@ def analyze_csv_directly(csv_content):
                 return "API 응답에서 내용을 찾을 수 없습니다."
                 
         except Exception as api_error:
-            logging.error(f"API 호출 오류: {str(api_error)}")
-            return "AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+            error_msg = str(api_error)
+            logging.error(f"Claude API 호출 오류: {error_msg}")
+            return f"AI 분석 중 API 오류가 발생했습니다: {error_msg}"
             
     except Exception as e:
-        logging.error(f"CSV 분석 준비 오류: {str(e)}")
-        return "CSV 분석 중 오류가 발생했습니다."
+        logging.error(f"분석 오류: {str(e)}")
+        return f"AI 분석 중 오류가 발생했습니다: {str(e)}"
 
 def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
     """학생 생활기록부를 분석하여 종합적인 결과를 반환합니다."""
