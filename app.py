@@ -253,7 +253,10 @@ def main():
     st.markdown('<h1 class="main-header">📚 학생부 분석 시스템</h1>', unsafe_allow_html=True)
     st.markdown("---")
 
-    # 사이드바
+    # OpenAI API 키 설정을 위한 섹션을 사이드바에 추가
+    if 'openai_api_key' not in st.session_state:
+        st.session_state.openai_api_key = ""
+
     with st.sidebar:
         st.title("학생부 분석기")
         st.write("""
@@ -269,6 +272,18 @@ def main():
     
         if uploaded_file:
             st.success("파일이 성공적으로 업로드되었습니다!")
+
+        # OpenAI API 키 입력 및 설정
+        st.write("### API 설정")
+        api_key_input = st.text_input("OpenAI API 키", 
+                                     value=st.session_state.openai_api_key,
+                                     type="password", 
+                                     help="OpenAI API 키를 입력하세요.")
+        
+        if api_key_input:
+            st.session_state.openai_api_key = api_key_input
+            os.environ["OPENAI_API_KEY"] = api_key_input
+            st.success("API 키가 설정되었습니다!")
 
     # 메인 컨텐츠 영역
     if uploaded_file:

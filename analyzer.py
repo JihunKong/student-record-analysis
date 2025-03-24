@@ -9,10 +9,18 @@ from dotenv import load_dotenv
 import re
 import streamlit as st
 import logging
-import requests  # anthropic 라이브러리 제거하고 requests만 사용
+import requests
 
 # .env 파일 로드
 load_dotenv()
+
+# OpenAI API 키 가져오기 함수
+def get_openai_api_key():
+    """OpenAI API 키를 환경 변수 또는 Streamlit secrets에서 가져옵니다."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key and 'openai' in st.secrets:
+        api_key = st.secrets["openai"]["api_key"]
+    return api_key
 
 def create_analysis_prompt(student_data: Dict[str, Any]) -> str:
     """학생 데이터 분석을 위한 프롬프트를 생성합니다."""
@@ -91,148 +99,14 @@ def create_analysis_prompt(student_data: Dict[str, Any]) -> str:
 """
     return prompt
 
-# 통합된 API 호출 함수
-def call_claude_api(prompt_text: str, system_prompt: str = None) -> str:
-    """
-    Claude API를 호출하는 통합 함수
-    
-    Args:
-        prompt_text: API에 전달할 프롬프트 텍스트
-        system_prompt: 시스템 프롬프트 (기본값: None)
-        
-    Returns:
-        API 응답 텍스트 또는 오류 메시지
-    """
-    try:
-        # API 키 가져오기
-        anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not anthropic_api_key and 'anthropic' in st.secrets:
-            anthropic_api_key = st.secrets["anthropic"]["api_key"]
-        
-        if not anthropic_api_key:
-            return "API 키가 설정되지 않았습니다."
-            
-        # 기본 시스템 프롬프트 설정 (ASCII 범위 내 문자만 사용)
-        if system_prompt is None:
-            system_prompt = "Educational expert analyzing student data."
-            
-        # 디버깅을 위한 로깅
-        logging.info("API 요청 준비 중...")
-        
-        # ASCII 인코딩 문제를 해결하기 위해 최소한의 심플한 프롬프트 사용
-        # 참고: 전달된 프롬프트는 무시하고 고정 프롬프트 사용
-        safe_prompt = "Analyze student data."
-        
-        # API 요청 헤더 (ASCII 범위 내 문자만 사용)
-        headers = {
-            "Content-Type": "application/json",
-            "X-Api-Key": anthropic_api_key,
-            "Anthropic-Version": "2023-06-01"
-        }
-        
-        # 가장 단순한 페이로드 구성 (모든 비ASCII 문자 제거)
-        payload = {
-            "model": "claude-3-7-sonnet-20250219",
-            "max_tokens": 4000,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": safe_prompt
-                }
-            ],
-            "system": "Expert analyst."
-        }
-        
-        # JSON 직렬화를 수동으로 처리 (ASCII 강제 설정)
-        import json
-        json_payload = json.dumps(payload, ensure_ascii=True)
-        
-        logging.info("API 요청 시작...")
-        
-        # 요청 전송 (data 파라미터 사용)
-        response = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            data=json_payload,  # json= 대신 data= 사용
-            headers=headers
-        )
-        
-        # 상태 코드 확인
-        logging.info(f"API 응답 코드: {response.status_code}")
-        
-        if response.status_code != 200:
-            logging.error(f"API 호출 실패: {response.status_code}")
-            logging.error(f"응답 내용: {response.text[:100]}")
-            return f"API 호출 오류 (상태 코드: {response.status_code})"
-        
-        # 응답 처리
-        try:
-            # 응답 내용 로깅
-            logging.info("응답 처리 시작...")
-            
-            # 응답 문자열을 로그에 기록 (디버깅용)
-            response_text = response.text
-            logging.info(f"원본 응답 (처음 100자): {response_text[:100]}...")
-            
-            # JSON 파싱
-            result = json.loads(response_text)
-            
-            # 응답 내용 추출
-            if "content" in result and isinstance(result["content"], list):
-                result_text = ""
-                
-                # 텍스트 내용 추출
-                for content_item in result["content"]:
-                    if content_item.get("type") == "text":
-                        result_text += content_item.get("text", "")
-                
-                if result_text:
-                    # 최종 처리된 응답 일부를 로그에 기록
-                    logging.info(f"최종 응답 텍스트 (처음 100자): {result_text[:100]}...")
-                    return result_text
-                else:
-                    logging.error("응답에 텍스트 내용이 없음")
-                    return "API 응답에 텍스트 내용이 없습니다."
-            else:
-                logging.error(f"응답에 content 필드가 없음: {list(result.keys())}")
-                return "API 응답 형식이 올바르지 않습니다."
-        
-        except json.JSONDecodeError as json_error:
-            logging.error(f"JSON 파싱 오류: {str(json_error)}")
-            return "API 응답을 JSON으로 파싱할 수 없습니다."
-            
-        except Exception as parse_error:
-            logging.error(f"응답 파싱 오류: {str(parse_error)}")
-            return "API 응답 처리 중 오류가 발생했습니다."
-    
-    except Exception as e:
-        logging.error(f"API 호출 중 예외 발생: {str(e)}")
-        return "API 호출 중 오류가 발생했습니다."
-
-# 기존 함수들은 통합 함수를 활용하도록 수정
-
-def analyze_with_claude(prompt):
-    """Anthropic Claude API로 학생 데이터 분석"""
-    try:
-        # 기본 프롬프트 사용
-        system_prompt = "당신은 학생 데이터를 분석하는 교육 전문가입니다. 항상 한국어로 응답하세요."
-        
-        # 통합 API 호출 함수 사용
-        return call_claude_api(prompt, system_prompt)
-    
-    except Exception as e:
-        logging.error(f"분석 오류: {str(e)}")
-        return f"AI 분석 중 오류가 발생했습니다: {str(e)}"
-
 def analyze_csv_directly(csv_content):
-    """CSV 데이터를 직접 분석합니다."""
+    """CSV 데이터를 GPT로 직접 분석합니다."""
     try:
-        # API 키 가져오기
-        anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not anthropic_api_key and 'anthropic' in st.secrets:
-            anthropic_api_key = st.secrets["anthropic"]["api_key"]
+        # OpenAI API 키 가져오기
+        openai_api_key = get_openai_api_key()
         
-        if not anthropic_api_key:
-            return "API 키가 설정되지 않았습니다."
+        if not openai_api_key:
+            return "OpenAI API 키가 설정되지 않았습니다. 환경 변수나 Streamlit secrets에 OPENAI_API_KEY를 설정하세요."
             
         # CSV 내용 샘플링 (너무 큰 경우)
         if len(csv_content) > 2000:
@@ -240,44 +114,47 @@ def analyze_csv_directly(csv_content):
         else:
             csv_sample = csv_content
             
-        # 영문 프롬프트 (ASCII 범위 내)
+        # 프롬프트 구성
         prompt = f"""
-Please analyze the following student data from the CSV file:
+다음 CSV 데이터를 분석하여 학생에 대한 통찰을 제공해주세요:
 
-CSV Data:
+CSV 데이터:
 {csv_sample}
 
-Provide insights on:
-1. Academic capabilities
-2. Student characteristics 
-3. Career suitability
-4. Recommendations
+다음 항목에 대해 분석해주세요:
+1. 학업 역량 분석
+2. 학생 특성 분석
+3. 진로 적합성 분석
+4. 종합 제언
 
-Respond in Korean with detailed analysis.
+분석은 긍정적이고 발전적인 관점에서 구체적으로 작성해주세요.
 """
         
         # API 요청 헤더
         headers = {
             "Content-Type": "application/json",
-            "X-Api-Key": anthropic_api_key,
-            "Anthropic-Version": "2023-06-01"
+            "Authorization": f"Bearer {openai_api_key}"
         }
         
         # API 요청 페이로드
         payload = {
-            "model": "claude-3-7-sonnet-20250219",
-            "max_tokens": 4000,
+            "model": "gpt-4-turbo",
             "messages": [
+                {
+                    "role": "system", 
+                    "content": "당신은 학생 데이터를 분석하는 교육 전문가입니다. 항상 한국어로 응답하세요."
+                },
                 {
                     "role": "user", 
                     "content": prompt
                 }
-            ]
+            ],
+            "max_tokens": 4000
         }
         
-        # API 호출
+        # OpenAI API 호출
         response = requests.post(
-            "https://api.anthropic.com/v1/messages",
+            "https://api.openai.com/v1/chat/completions",
             json=payload,
             headers=headers
         )
@@ -286,56 +163,72 @@ Respond in Korean with detailed analysis.
         if response.status_code == 200:
             result = response.json()
             
-            # 텍스트만 추출
-            result_text = ""
-            if "content" in result:
-                for item in result["content"]:
-                    if item.get("type") == "text":
-                        result_text += item.get("text", "")
-            
-            return result_text or "응답이 비어있습니다."
+            if "choices" in result and len(result["choices"]) > 0:
+                return result["choices"][0]["message"]["content"]
+            else:
+                return "응답 내용을 찾을 수 없습니다."
         else:
-            return f"API 호출 실패 (상태 코드: {response.status_code})"
+            return f"API 호출 실패 (상태 코드: {response.status_code}): {response.text}"
     
     except Exception as e:
         return f"CSV 분석 중 오류 발생: {str(e)}"
 
 def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
-    """학생 생활기록부를 분석하여 종합적인 결과를 반환합니다."""
+    """학생 생활기록부를 GPT를 사용하여 분석합니다."""
     try:
-        # API 키 가져오기
-        anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not anthropic_api_key and 'anthropic' in st.secrets:
-            anthropic_api_key = st.secrets["anthropic"]["api_key"]
+        # OpenAI API 키 가져오기
+        openai_api_key = get_openai_api_key()
         
-        if not anthropic_api_key:
-            return {"analysis": "API 키가 설정되지 않았습니다."}
+        if not openai_api_key:
+            return {"analysis": "OpenAI API 키가 설정되지 않았습니다. 환경 변수나 Streamlit secrets에 OPENAI_API_KEY를 설정하세요."}
         
-        # 간단한 프롬프트
-        simple_prompt = "Analyze student record."
+        # 학생 데이터 전처리
+        processed_data = {
+            "학업 기록": student_data.get("academic_records", {}),
+            "특별 활동": student_data.get("special_notes", {}),
+            "진로 희망": student_data.get("career_aspiration", "미정")
+        }
+        
+        # 프롬프트 구성
+        prompt = f"""
+다음 학생 데이터를 분석하여 종합적인 평가를 제공해주세요:
+
+학생 데이터: {json.dumps(processed_data, ensure_ascii=False)[:1000]}
+
+다음 항목을 포함한 분석을 제공해주세요:
+1. 학업 역량 분석 (전반적인 학업 수준, 과목별 특징, 학습 태도)
+2. 학생 특성 분석 (성격, 관심사, 대인관계 및 리더십)
+3. 진로 적합성 분석 (희망 진로와의 연관성, 준비 상태, 발전 가능성)
+4. 종합 제언 (구체적인 발전 방향 5가지 이상)
+
+학생의 강점을 살리고 약점을 보완할 수 있는 구체적이고 실행 가능한 조언을 포함해주세요.
+"""
         
         # API 요청 헤더
         headers = {
             "Content-Type": "application/json",
-            "X-Api-Key": anthropic_api_key,
-            "Anthropic-Version": "2023-06-01"
+            "Authorization": f"Bearer {openai_api_key}"
         }
         
-        # 간단한 페이로드
+        # API 요청 페이로드
         payload = {
-            "model": "claude-3-7-sonnet-20250219",
-            "max_tokens": 4000,
+            "model": "gpt-4-turbo",
             "messages": [
                 {
-                    "role": "user",
-                    "content": simple_prompt
+                    "role": "system", 
+                    "content": "당신은 학생 데이터를 분석하는 교육 전문가입니다. 객관적이면서도 긍정적인 관점으로 분석하고, 항상 한국어로 응답하세요."
+                },
+                {
+                    "role": "user", 
+                    "content": prompt
                 }
-            ]
+            ],
+            "max_tokens": 4000
         }
         
-        # API 호출
+        # OpenAI API 호출
         response = requests.post(
-            "https://api.anthropic.com/v1/messages",
+            "https://api.openai.com/v1/chat/completions",
             json=payload,
             headers=headers
         )
@@ -344,19 +237,15 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
         if response.status_code == 200:
             result = response.json()
             
-            # 텍스트만 추출
-            result_text = ""
-            if "content" in result:
-                for item in result["content"]:
-                    if item.get("type") == "text":
-                        result_text += item.get("text", "")
-            
-            return {"analysis": result_text or "응답이 비어있습니다."}
+            if "choices" in result and len(result["choices"]) > 0:
+                return {"analysis": result["choices"][0]["message"]["content"]}
+            else:
+                return {"analysis": "응답 내용을 찾을 수 없습니다."}
         else:
-            return {"analysis": f"API 호출 실패 (상태 코드: {response.status_code})"}
+            return {"analysis": f"API 호출 실패 (상태 코드: {response.status_code}): {response.text[:200]}"}
     
     except Exception as e:
-        return {"analysis": f"오류 발생: {str(e)}"}
+        return {"analysis": f"분석 중 오류 발생: {str(e)}"}
 
 def create_subject_radar_chart(subject_data: Dict[str, Any]) -> go.Figure:
     """교과별 성취도를 레이더 차트로 시각화합니다."""
