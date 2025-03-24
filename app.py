@@ -216,71 +216,61 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # 커스텀 CSS - 최소화하여 충돌 방지
+    # CSS 간소화 - 필수 스타일만 유지
     st.markdown("""
     <style>
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 1rem;
-        }
-        .section-header {
-            font-size: 24px !important;
-            color: #2563EB;
-            margin-top: 10px;
-            margin-bottom: 10px;
-        }
+        .block-container {padding: 1rem;}
     </style>
     """, unsafe_allow_html=True)
     
     # 사이드바
     with st.sidebar:
         st.title("📚 학생부 분석 시스템")
-        
-        # 파일 업로드 섹션
         st.write("### 파일 업로드")
         uploaded_file = st.file_uploader("CSV 파일을 업로드하세요", type=["csv"])
         
         if uploaded_file is not None:
             st.success("파일이 성공적으로 업로드되었습니다!")
         
-        # 저작권 정보 추가
         st.markdown("---")
         st.markdown("© 2025 학생부 분석기 Made by 공지훈")
-
-    # 탭 생성 - 디버그 메시지 제거
-    tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
     
-    # 파일이 업로드되지 않은 경우 안내 메시지 표시
+    # 탭 생성 - col1에 넣어 항상 표시되도록 함
+    col1 = st.container()
+    with col1:
+        tabs = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
+        tab1, tab2, tab3, tab4 = tabs
+    
+    # 파일이 업로드되지 않은 경우
     if not uploaded_file:
-        with tab1, tab2, tab3, tab4:
-            st.info("분석을 시작하려면, 좌측 사이드바에서 CSV 파일을 업로드해주세요.")
-        return  # 여기서 함수 종료
-        
-    # 업로드된 파일 처리
+        for tab in tabs:
+            with tab:
+                st.info("분석을 시작하려면, 좌측 사이드바에서 CSV 파일을 업로드해주세요.")
+        return
+    
+    # 파일 처리 시작
     try:
         # 파일이 이미 처리되었는지 확인
         if 'student_info' not in st.session_state or not st.session_state.student_info:
-            # 처리 시작 시 로딩 표시
             with st.spinner("파일을 처리 중입니다..."):
                 student_info = process_uploaded_file(uploaded_file)
-                # 세션에 저장
                 st.session_state.student_info = student_info
         else:
-            # 이미 처리된 정보가 있으면 재사용
             student_info = st.session_state.student_info
         
-        # 학생 정보가 비어있으면 예외 발생
+        # 학생 정보가 비어있는 경우
         if not student_info:
-            with tab1, tab2, tab3, tab4:
-                st.warning("학생 정보를 충분히 추출할 수 없습니다. 일부 기능이 제한될 수 있습니다.")
-            return  # 여기서 함수 종료
+            for tab in tabs:
+                with tab:
+                    st.warning("학생 정보를 충분히 추출할 수 없습니다.")
+            return
         
-        # 이제 각 탭에 내용 표시
+        # 각 탭에 데이터 표시
         with tab1:
-            st.markdown('<h2 class="section-header">📊 원본 데이터</h2>', unsafe_allow_html=True)
+            st.header("📊 원본 데이터")
             
             # 세특 데이터 표시
-            st.markdown("### 세부능력 및 특기사항")
+            st.subheader("세부능력 및 특기사항")
             
             # 과목별 세특 표시
             if 'special_notes' in student_info and 'subjects' in student_info['special_notes'] and student_info['special_notes']['subjects']:
@@ -294,7 +284,7 @@ def main():
             
             # 활동별 세특 표시
             if 'special_notes' in student_info and 'activities' in student_info['special_notes'] and student_info['special_notes']['activities']:
-                st.markdown("### 활동별 특기사항")
+                st.subheader("활동별 특기사항")
                 activities_df = pd.DataFrame({
                     '활동': list(student_info['special_notes']['activities'].keys()),
                     '내용': list(student_info['special_notes']['activities'].values())
@@ -304,11 +294,11 @@ def main():
                 st.info("활동별 세특 데이터가 없습니다.")
             
             # 성적 데이터 표시
-            st.markdown("### 성적 데이터")
+            st.subheader("성적 데이터")
             display_grade_data(student_info)
         
         with tab2:
-            st.markdown('<h2 class="section-header">📈 성적 분석</h2>', unsafe_allow_html=True)
+            st.header("📈 성적 분석")
             
             # 과목별 비교 차트 - 학점수와 등급만 사용
             main_subjects = ['국어', '영어', '수학', '사회', '과학']
@@ -356,9 +346,6 @@ def main():
                     semester2_grades.append(0)
                     semester2_credits.append(0)
             
-            # 디버깅 정보
-            print(f"수집된 데이터 - 1학기: {semester1_grades}, 2학기: {semester2_grades}")
-            
             # 0인 값은 제외하고 표시할 과목과 데이터 준비
             valid_subjects = []
             valid_sem1_grades = []
@@ -373,11 +360,6 @@ def main():
                     valid_sem2_grades.append(semester2_grades[i])
                     valid_sem1_credits.append(semester1_credits[i])
                     valid_sem2_credits.append(semester2_credits[i])
-            
-            # 디버깅 정보
-            print(f"유효 과목: {valid_subjects}")
-            print(f"유효 1학기 등급: {valid_sem1_grades}")
-            print(f"유효 2학기 등급: {valid_sem2_grades}")
             
             # 차트 생성 - 등급을 그래프 높이로 변환 (1등급=9칸, 9등급=1칸)
             if valid_subjects:
@@ -525,8 +507,7 @@ def main():
             else:
                 st.info("과목별 등급 데이터가 없습니다.")
             
-            # 학기별 평균 등급 계산 - 5과목, 7과목 모두 계산
-            # 5과목 평균 (국어, 영어, 수학, 사회, 과학)
+            # 학기별 평균 등급 계산
             semester1_avg_5 = 0
             semester2_avg_5 = 0
             
@@ -538,31 +519,6 @@ def main():
             
             if sem2_grades_5:
                 semester2_avg_5 = sum(sem2_grades_5) / len(sem2_grades_5)
-            
-            # 7과목 평균 (국어, 영어, 수학, 사회, 과학, 한국사, 정보)
-            semester1_avg_7 = 0
-            semester2_avg_7 = 0
-            
-            # 7과목 데이터 수집
-            all_sem1_grades = []
-            all_sem2_grades = []
-            
-            # 모든 과목 순회
-            if 'semester1' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester1']:
-                for subject, grade_info in student_info['academic_records']['semester1']['grades'].items():
-                    if 'rank' in grade_info and grade_info['rank'] > 0:
-                        all_sem1_grades.append(grade_info['rank'])
-            
-            if 'semester2' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester2']:
-                for subject, grade_info in student_info['academic_records']['semester2']['grades'].items():
-                    if 'rank' in grade_info and grade_info['rank'] > 0:
-                        all_sem2_grades.append(grade_info['rank'])
-            
-            if all_sem1_grades:
-                semester1_avg_7 = sum(all_sem1_grades) / len(all_sem1_grades)
-            
-            if all_sem2_grades:
-                semester2_avg_7 = sum(all_sem2_grades) / len(all_sem2_grades)
             
             # 학기별 평균 표시
             st.subheader("학기별 평균 등급")
@@ -579,39 +535,21 @@ def main():
             with col2:
                 if semester2_avg_5 > 0:
                     delta = semester1_avg_5 - semester2_avg_5 if semester1_avg_5 > 0 else None
-                    delta_color = "inverse" if delta and delta > 0 else "normal"  # 등급은 낮을수록 좋으므로 색상 반전
+                    delta_color = "inverse" if delta and delta > 0 else "normal"
                     st.metric("2학기 평균 등급 (5과목)", f"{semester2_avg_5:.2f}", delta=f"{delta:.2f}" if delta else None, delta_color=delta_color)
                 else:
                     st.metric("2학기 평균 등급 (5과목)", "N/A")
-            
-            # 7과목 평균 표시
-            st.markdown("##### 참고: 모든 과목 평균")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if semester1_avg_7 > 0:
-                    st.metric("1학기 평균 등급 (전체)", f"{semester1_avg_7:.2f}")
-                else:
-                    st.metric("1학기 평균 등급 (전체)", "N/A")
-            
-            with col2:
-                if semester2_avg_7 > 0:
-                    delta = semester1_avg_7 - semester2_avg_7 if semester1_avg_7 > 0 else None
-                    delta_color = "inverse" if delta and delta > 0 else "normal"
-                    st.metric("2학기 평균 등급 (전체)", f"{semester2_avg_7:.2f}", delta=f"{delta:.2f}" if delta else None, delta_color=delta_color)
-                else:
-                    st.metric("2학기 평균 등급 (전체)", "N/A")
         
         with tab3:
-            st.markdown('<h2 class="section-header">📋 세부능력 및 특기사항</h2>', unsafe_allow_html=True)
+            st.header("📋 세부능력 및 특기사항")
             
             # 교과별 세특
-            st.markdown('<h3 class="subsection-header">🎓 교과별 세특</h3>', unsafe_allow_html=True)
+            st.subheader("🎓 교과별 세특")
             
             display_special_notes(student_info)
         
         with tab4:
-            st.markdown('<h2 class="section-header">🤖 AI 분석</h2>', unsafe_allow_html=True)
+            st.header("🤖 AI 분석")
             
             if "ai_analysis" in student_info and student_info["ai_analysis"]:
                 st.markdown(student_info["ai_analysis"])
