@@ -46,6 +46,12 @@ with st.sidebar:
     st.markdown("3. 분석 결과를 확인합니다.")
     st.markdown("---")
     st.markdown("© 2025 생활기록부 분석기 Made by 공지훈")
+    
+    # 메뉴 선택
+    menu = st.radio(
+        "메뉴 선택",
+        ["파일 업로드", "분석 결과", "도움말"]
+    )
 
 # 세션 상태 초기화
 if 'uploaded_file' not in st.session_state:
