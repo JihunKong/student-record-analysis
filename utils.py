@@ -25,51 +25,55 @@ def preprocess_csv(file):
         # 인덱스 재설정
         df = df.reset_index(drop=True)
         
-        return df
+        # 성적 데이터 섹션 찾기
+        grade_section = df[df.iloc[:, 0] == '학기'].index[0]
+        grade_data = df.iloc[grade_section+1:].copy()
+        
+        # 성적 데이터 컬럼명 설정
+        grade_columns = ['학기', '교과', '과목', '학점수', '원점수/과목평균', '성취도', '석차등급']
+        grade_data = grade_data.iloc[:, :len(grade_columns)]
+        grade_data.columns = grade_columns
+        
+        # 빈 행 제거
+        grade_data = grade_data.dropna(subset=['학기', '교과', '과목'])
+        
+        # 성적 데이터를 제외한 나머지 데이터
+        main_data = df.iloc[:grade_section].copy()
+        
+        return main_data, grade_data
     except Exception as e:
         raise Exception(f"CSV 파일 전처리 중 오류 발생: {str(e)}")
 
 def extract_student_info(df):
     """DataFrame에서 학생 정보를 추출합니다."""
     try:
+        main_data, grade_data = df
+        
         student_info = {}
         
         # 교과별 세부능력 및 특기사항
         academic_performance = {}
         for subject in ['국어', '수학', '영어', '한국사', '사회', '과학', '과학탐구실험', '정보', '체육', '음악', '미술']:
-            if subject in df.columns:
-                content = df[subject].iloc[0]
+            if subject in main_data.columns:
+                content = main_data[subject].iloc[0]
                 if pd.notna(content):
                     academic_performance[subject] = content
         
         # 활동 내역
         activities = {}
         for activity_type in ['자율', '동아리', '진로', '행특', '개인']:
-            if activity_type in df.columns:
-                content = df[activity_type].iloc[0]
+            if activity_type in main_data.columns:
+                content = main_data[activity_type].iloc[0]
                 if pd.notna(content):
                     activities[activity_type] = content
         
         # 진로 희망
         career_aspiration = ""
-        if '진로희망' in df.columns:
-            career_aspiration = df['진로희망'].iloc[0]
+        if '진로희망' in main_data.columns:
+            career_aspiration = main_data['진로희망'].iloc[0]
         
         # 학기별 성적
-        grades = []
-        # 성적 데이터가 있는 행 찾기
-        grade_section = df[df.iloc[:, 0] == '학기'].index[0]
-        grade_data = df.iloc[grade_section+1:].copy()
-        
-        if not grade_data.empty:
-            # 성적 데이터 컬럼명 설정
-            grade_columns = ['학기', '교과', '과목', '학점수', '원점수/과목평균', '성취도', '석차등급']
-            grade_data = grade_data.iloc[:, :len(grade_columns)]
-            grade_data.columns = grade_columns
-            
-            # 빈 행 제거
-            grade_data = grade_data.dropna(subset=['학기', '교과', '과목'])
-            grades = grade_data.to_dict('records')
+        grades = grade_data.to_dict('records')
         
         # 추출한 정보를 student_info에 저장
         student_info['academic_performance'] = academic_performance
