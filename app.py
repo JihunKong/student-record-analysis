@@ -15,25 +15,17 @@ load_dotenv()
 def analyze_student_record(student_info: dict) -> dict:
     """학생 생활기록부를 분석하여 종합적인 결과를 반환합니다."""
     try:
-        # Claude API로 분석 요청을 위한 프롬프트 생성
-        from analyzer import analyze_with_claude, analyze_csv_directly, create_analysis_prompt
+        # 영문 프롬프트만 사용하여 인코딩 문제 해결
+        # analyzer.py의 analyze_student_record 직접 호출
+        from analyzer import analyze_student_record as analyzer_analyze
         
-        # 프롬프트 생성
-        prompt = create_analysis_prompt(student_info)
-        
-        # 분석 시도
-        try:
-            # 분석 요청
-            analysis_result = analyze_with_claude(prompt)
-            return {"analysis": analysis_result}
-        except Exception as e:
-            print(f"Claude API 호출 중 오류: {str(e)}")
-            # 오류 발생 시 프롬프트만 반환
-            return {"analysis": prompt, "error": str(e)}
+        # 직접 analyzer.py의 함수 호출
+        return analyzer_analyze(student_info)
         
     except Exception as e:
-        print(f"분석 중 오류 발생: {str(e)}")
-        return {"error": str(e)}
+        import logging
+        logging.error(f"분석 중 오류 발생: {str(e)}")
+        return {"analysis": f"AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", "error": str(e)}
 
 def create_analysis_prompt(student_info: dict) -> str:
     """학생 정보를 바탕으로 Claude에게 보낼 분석 프롬프트를 생성합니다."""
@@ -187,19 +179,30 @@ def process_uploaded_file(uploaded_file):
         student_info = process_csv_file(uploaded_file)
         
         # AI 분석 직접 호출 준비
-        from analyzer import analyze_csv_directly
+        import logging
+        logging.info("CSV 파일 분석 준비 중...")
         
         try:
-            # CSV 파일 전체를 직접 Claude에 전달하여 분석
-            analysis_result = analyze_csv_directly(file_content)
-            student_info["ai_analysis"] = analysis_result
+            # analyzer.py의 analyze_student_record 직접 호출
+            from analyzer import analyze_student_record as analyzer_analyze
+            
+            # 분석 결과 얻기
+            analysis_result = analyzer_analyze(student_info)
+            
+            if "analysis" in analysis_result:
+                student_info["ai_analysis"] = analysis_result["analysis"]
+            else:
+                student_info["ai_analysis"] = "분석 결과를 얻을 수 없습니다."
+                
         except Exception as e:
-            st.error(f"AI 분석 중 오류가 발생했습니다: {str(e)}")
-            student_info["ai_analysis"] = "분석 중 오류가 발생했습니다."
+            logging.error(f"AI 분석 중 오류 발생: {str(e)}")
+            student_info["ai_analysis"] = "AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
         
         return student_info
         
     except Exception as e:
+        import logging
+        logging.error(f"파일 처리 중 오류 발생: {str(e)}")
         st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
         return None
 
