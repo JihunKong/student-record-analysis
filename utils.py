@@ -22,42 +22,38 @@ def preprocess_csv(uploaded_file) -> pd.DataFrame:
     df.columns = df.columns.str.strip().str.lower()
     return df
 
-def extract_student_info(df: pd.DataFrame) -> Dict[str, Any]:
+def extract_student_info(df):
     """학생 정보를 추출합니다."""
+    # 컬럼명을 소문자로 변환하고 공백 제거
+    df.columns = df.columns.str.lower().str.strip()
+    
+    # 기본 정보 추출
     student_info = {
-        "학년": df["학년"].iloc[0],
-        "반": df["반"].iloc[0],
-        "번호": df["번호"].iloc[0],
-        "이름": df["이름"].iloc[0],
-        "생년월일": df["생년월일"].iloc[0],
-        "성별": df["성별"].iloc[0],
-        "진로희망": df["진로희망"].iloc[0],
-        "희망직업": df["희망직업"].iloc[0],
-        "희망대학": df["희망대학"].iloc[0],
-        "희망학과": df["희망학과"].iloc[0],
-        "교과_성취도": {},
-        "활동_내역": []
+        'grade': df['학년'].iloc[0] if '학년' in df.columns else None,
+        'class': df['반'].iloc[0] if '반' in df.columns else None,
+        'student_number': df['번호'].iloc[0] if '번호' in df.columns else None,
+        'name': df['이름'].iloc[0] if '이름' in df.columns else None,
+        'birth_date': df['생년월일'].iloc[0] if '생년월일' in df.columns else None,
+        'gender': df['성별'].iloc[0] if '성별' in df.columns else None,
+        'career_aspiration': df['진로희망'].iloc[0] if '진로희망' in df.columns else None,
+        'desired_profession': df['희망직업'].iloc[0] if '희망직업' in df.columns else None,
+        'desired_university': df['희망대학'].iloc[0] if '희망대학' in df.columns else None,
+        'desired_major': df['희망학과'].iloc[0] if '희망학과' in df.columns else None,
+        'academic_performance': {},
+        'activities': {}
     }
     
     # 교과별 성취도 추출
-    subjects = ["국어", "수학", "영어", "한국사", "사회", "과학", "과학탐구실험", 
-                "정보", "체육", "음악", "미술"]
+    subjects = ['국어', '수학', '영어', '한국사', '사회', '과학', '과학탐구실험', '정보', '체육', '음악', '미술']
     for subject in subjects:
         if subject in df.columns:
-            student_info["교과_성취도"][subject] = {
-                "성취도": df[subject].iloc[0],
-                "활동내용": df[f"{subject}_활동내용"].iloc[0] if f"{subject}_활동내용" in df.columns else ""
-            }
+            student_info['academic_performance'][subject] = df[subject].iloc[0]
     
     # 활동 내역 추출
-    activities = ["자율활동", "동아리활동", "진로활동"]
+    activities = ['자율활동', '동아리활동', '진로활동']
     for activity in activities:
         if activity in df.columns:
-            student_info["활동_내역"].append({
-                "활동명": activity,
-                "내용": df[activity].iloc[0],
-                "날짜": df[f"{activity}_날짜"].iloc[0] if f"{activity}_날짜" in df.columns else ""
-            })
+            student_info['activities'][activity] = df[activity].iloc[0]
     
     return student_info
 

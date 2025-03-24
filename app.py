@@ -84,18 +84,40 @@ if menu == "파일 업로드":
             student_info = extract_student_info(df)
             st.session_state.student_info = student_info
             
-            # 학생 기본 정보 표시
-            st.subheader("학생 기본 정보")
-            col1, col2, col3 = st.columns(3)
+            # 학생 정보 표시
+            st.subheader("학생 정보")
+            col1, col2 = st.columns(2)
+            
             with col1:
-                st.write(f"**이름:** {student_info['이름']}")
-                st.write(f"**학년:** {student_info['학년']}학년")
+                st.write("**기본 정보**")
+                st.write(f"- 학년: {student_info['grade']}")
+                st.write(f"- 반: {student_info['class']}")
+                st.write(f"- 번호: {student_info['student_number']}")
+                st.write(f"- 이름: {student_info['name']}")
+                st.write(f"- 생년월일: {student_info['birth_date']}")
+                st.write(f"- 성별: {student_info['gender']}")
+            
             with col2:
-                st.write(f"**반:** {student_info['반']}반")
-                st.write(f"**번호:** {student_info['번호']}번")
-            with col3:
-                st.write(f"**성별:** {student_info['성별']}")
-                st.write(f"**진로희망:** {student_info['진로희망']}")
+                st.write("**진로 정보**")
+                st.write(f"- 진로희망: {student_info['career_aspiration']}")
+                st.write(f"- 희망직업: {student_info['desired_profession']}")
+                st.write(f"- 희망대학: {student_info['desired_university']}")
+                st.write(f"- 희망학과: {student_info['desired_major']}")
+            
+            # 교과별 성취도 표시
+            st.subheader("교과별 성취도")
+            academic_performance = student_info['academic_performance']
+            if academic_performance:
+                performance_df = pd.DataFrame(list(academic_performance.items()), columns=['과목', '성취도'])
+                st.dataframe(performance_df)
+            
+            # 활동 내역 표시
+            st.subheader("활동 내역")
+            activities = student_info['activities']
+            if activities:
+                for activity, content in activities.items():
+                    st.write(f"**{activity}**")
+                    st.write(content)
             
             # 분석 시작 버튼
             if st.button("분석 시작"):
