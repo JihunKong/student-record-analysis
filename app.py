@@ -249,49 +249,57 @@ def main():
     </style>
     """, unsafe_allow_html=True)
     
-    # 앱 타이틀
-    st.markdown('<h1 class="main-header">📚 학생부 분석 시스템</h1>', unsafe_allow_html=True)
+    # 제목 스타일 및 레이아웃 수정
+    st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📚 학생부 분석 시스템</h1>", unsafe_allow_html=True)
     st.markdown("---")
 
-    # OpenAI API 키 설정을 위한 섹션을 사이드바에 추가
-    if 'openai_api_key' not in st.session_state:
-        st.session_state.openai_api_key = ""
-
+    # 사이드바에서 API 키 입력 섹션 제거
     with st.sidebar:
         st.title("학생부 분석기")
-        st.write("""
-        이 앱은 학생의 학생부 데이터를 분석하여 
-        학생의 특성과 진로 적합성을 파악하는 도구입니다.
-        """)
-        st.markdown("---")
-        st.markdown("© 2025 학생부 분석기 Made by 공지훈")
-
-        # 사이드바에 파일 업로더 배치
-        st.header("데이터 업로드")
-        uploaded_file = st.file_uploader("CSV 파일을 업로드하세요", type=['csv'])
-    
-        if uploaded_file:
-            st.success("파일이 성공적으로 업로드되었습니다!")
-
-        # OpenAI API 키 입력 및 설정
-        st.write("### API 설정")
-        api_key_input = st.text_input("OpenAI API 키", 
-                                     value=st.session_state.openai_api_key,
-                                     type="password", 
-                                     help="OpenAI API 키를 입력하세요.")
         
-        if api_key_input:
-            st.session_state.openai_api_key = api_key_input
-            os.environ["OPENAI_API_KEY"] = api_key_input
-            st.success("API 키가 설정되었습니다!")
+        # 파일 업로드 섹션
+        st.write("### 파일 업로드")
+        uploaded_file = st.file_uploader("CSV 파일을 업로드하세요", type=["csv"])
+        
+        if uploaded_file is not None:
+            st.success("파일이 성공적으로 업로드되었습니다!")
+        
+        # API 키 입력 섹션 제거 (환경 변수에 이미 설정됨)
+        # 해당 부분 주석 처리 또는 삭제
+
+    # "파일을 처리 중입니다" 메시지 문제 해결
+    # 처리 중 메시지가 계속 표시되는 부분 수정
+    if 'show_loading' not in st.session_state:
+        st.session_state.show_loading = False
+
+    if uploaded_file and not st.session_state.get('student_info'):
+        # 처리 시작 시에만 로딩 표시
+        if not st.session_state.show_loading:
+            with st.spinner("파일을 처리 중입니다. 잠시만 기다려주세요..."):
+                # 파일 처리 코드
+                try:
+                    # 기존 처리 코드
+                    st.session_state.show_loading = False  # 처리 완료 후 로딩 메시지 숨김
+                except Exception as e:
+                    st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
+                    st.session_state.show_loading = False
+    else:
+        # 이미 처리된 데이터가 있거나 파일이 업로드되지 않은 경우 로딩 표시 안함
+        st.session_state.show_loading = False
 
     # 메인 컨텐츠 영역
     if uploaded_file:
         try:
-            st.info("파일을 처리 중입니다. 잠시만 기다려주세요...")
-            
-            # 파일 처리 및 학생 정보 추출 (AI 분석 포함)
-            student_info = process_uploaded_file(uploaded_file)
+            # 파일이 이미 처리되었는지 확인
+            if 'student_info' not in st.session_state or not st.session_state.student_info:
+                # 파일 처리 및 학생 정보 추출 (AI 분석 포함)
+                with st.spinner("파일을 처리 중입니다..."):
+                    student_info = process_uploaded_file(uploaded_file)
+                    # 세션에 저장
+                    st.session_state.student_info = student_info
+            else:
+                # 이미 처리된 정보가 있으면 재사용
+                student_info = st.session_state.student_info
             
             # 학생 정보가 비어있으면 예외 발생
             if not student_info:
@@ -646,6 +654,10 @@ def main():
             st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
             import traceback
             st.text(traceback.format_exc())
+
+    # 사이드바에 copyright 정보 추가
+    st.markdown("---")
+    st.markdown("© 2025 학생부 분석기 Made by 공지훈")
 
 # 앱 실행
 if __name__ == "__main__":
