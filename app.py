@@ -101,6 +101,30 @@ if uploaded_file is not None:
         st.subheader("📚 교과 성취도")
         for subject, analysis in analysis_result["교과_성취도"]["과목별_분석"].items():
             st.write(f"**{subject}:** {analysis}")
+            
+        # 성적 데이터 시각화 코드
+        if "시각화_코드" in analysis_result:
+            st.subheader("📊 성적 데이터 시각화")
+            
+            # React 컴포넌트 코드
+            with st.expander("React 컴포넌트 코드 보기"):
+                st.code(analysis_result["시각화_코드"]["react_component"], language="jsx")
+            
+            # CSS 스타일 코드
+            with st.expander("CSS 스타일 코드 보기"):
+                st.code(analysis_result["시각화_코드"]["css_styles"], language="css")
+            
+            # 사용 방법 설명
+            with st.expander("사용 방법 및 필요한 라이브러리"):
+                st.markdown(analysis_result["시각화_코드"]["설명"])
+            
+            st.info("""
+            위 코드를 React 프로젝트에서 사용하려면:
+            1. 필요한 라이브러리를 설치하세요
+            2. React 컴포넌트 파일을 생성하고 코드를 복사하세요
+            3. CSS 파일을 생성하고 스타일 코드를 복사하세요
+            4. 컴포넌트를 import하여 사용하세요
+            """)
         
         # 활동 내역
         st.subheader("🎯 활동 내역")
