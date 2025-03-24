@@ -30,11 +30,11 @@ if not GEMINI_API_KEY:
     st.stop()
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.0-flash', generation_config={
+model = genai.GenerativeModel('gemini-2.0-pro', generation_config={
     'temperature': 0.7,
     'top_p': 0.8,
     'top_k': 40,
-    'max_output_tokens': 2048,
+    'max_output_tokens': 4096,
 })
 
 # 앱 타이틀
