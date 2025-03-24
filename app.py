@@ -89,9 +89,9 @@ if menu == "파일 업로드":
             # 학생 정보 표시
             st.subheader("학생 정보")
             
-            # 교과별 성취도 표시
-            st.subheader("교과별 성취도")
-            academic_performance = student_info['academic_performance']
+            # 교과별 세부능력 및 특기사항 표시
+            st.subheader("교과별 세부능력 및 특기사항")
+            academic_performance = student_info.get('academic_performance', {})
             if academic_performance:
                 for subject, content in academic_performance.items():
                     with st.expander(subject):
@@ -99,15 +99,15 @@ if menu == "파일 업로드":
             
             # 활동 내역 표시
             st.subheader("활동 내역")
-            activities = student_info['activities']
+            activities = student_info.get('activities', {})
             if activities:
-                for activity, content in activities.items():
-                    with st.expander(activity):
+                for activity_type, content in activities.items():
+                    with st.expander(activity_type):
                         st.write(content)
             
             # 학기별 성적 표시
             st.subheader("학기별 성적")
-            grades = student_info['grades']
+            grades = student_info.get('grades', [])
             if grades:
                 grades_df = pd.DataFrame(grades)
                 st.dataframe(grades_df)
@@ -119,350 +119,152 @@ if menu == "파일 업로드":
                         analysis_results = analyze_student_record(student_info)
                         st.session_state.analysis_results = analysis_results
                         st.success("분석이 완료되었습니다!")
+                        
+                        # 분석 결과 바로 표시
+                        st.header("📊 생활기록부 분석 결과")
+                        
+                        # 학생 프로필
+                        st.subheader("👤 학생 프로필 요약")
+                        if "학생_프로필" in analysis_results:
+                            profile = analysis_results["학생_프로필"]
+                            
+                            # 프로필 정보 표시
+                            col1, col2 = st.columns([2, 1])
+                            
+                            with col1:
+                                if "기본_정보_요약" in profile:
+                                    st.markdown("### 기본 정보")
+                                    st.write(profile["기본_정보_요약"])
+                                
+                                if "강점" in profile:
+                                    st.markdown("### 강점")
+                                    if isinstance(profile["강점"], list):
+                                        for item in profile["강점"]:
+                                            st.write(f"- {item}")
+                                    else:
+                                        st.write(profile["강점"])
+                                
+                                if "약점" in profile:
+                                    st.markdown("### 개선 필요 사항")
+                                    if isinstance(profile["약점"], list):
+                                        for item in profile["약점"]:
+                                            st.write(f"- {item}")
+                                    else:
+                                        st.write(profile["약점"])
+                            
+                            with col2:
+                                if "능력_점수" in profile:
+                                    st.markdown("### 학생 능력 프로필")
+                                    radar_fig = create_radar_chart(profile["능력_점수"])
+                                    st.pyplot(radar_fig)
+                        
+                        # 진로 적합성
+                        st.subheader("🎯 진로 적합성 분석")
+                        if "진로_적합성" in analysis_results:
+                            career = analysis_results["진로_적합성"]
+                            
+                            if "일치도" in career:
+                                st.markdown("### 희망 진로와 현재 역량 일치도")
+                                st.write(career["일치도"])
+                            
+                            if "적합_진로_옵션" in career:
+                                st.markdown("### 추천 진로 옵션")
+                                options = career["적합_진로_옵션"]
+                                
+                                if isinstance(options, list):
+                                    for idx, option in enumerate(options):
+                                        with st.expander(f"추천 진로 {idx+1}: {option.get('진로명', '')}"):
+                                            st.write(f"**적합 이유:** {option.get('적합_이유', '')}")
+                                            st.write(f"**보완 필요 사항:** {option.get('보완_필요사항', '')}")
+                                else:
+                                    st.write(options)
+                        
+                        # 학업 발전 전략
+                        st.subheader("📚 학업 발전 전략")
+                        if "학업_발전_전략" in analysis_results:
+                            academic = analysis_results["학업_발전_전략"]
+                            
+                            if "교과목_분석" in academic:
+                                st.markdown("### 교과목별 분석")
+                                subjects = academic["교과목_분석"]
+                                
+                                if isinstance(subjects, dict):
+                                    for subject, analysis in subjects.items():
+                                        with st.expander(f"교과목: {subject}"):
+                                            st.write(f"**현재 성취도:** {analysis.get('현재_성취도', '')}")
+                                            st.write(f"**발전 가능성:** {analysis.get('발전_가능성', '')}")
+                                            st.write(f"**권장 전략:** {analysis.get('권장_전략', '')}")
+                                else:
+                                    st.write(subjects)
+                        
+                        # 진로 로드맵
+                        st.subheader("🗺️ 진로 로드맵")
+                        if "진로_로드맵" in analysis_results:
+                            roadmap = analysis_results["진로_로드맵"]
+                            
+                            col1, col2 = st.columns([2, 1])
+                            
+                            with col1:
+                                if "단기_목표" in roadmap:
+                                    st.markdown("### 단기 목표 (고등학교)")
+                                    goals = roadmap["단기_목표"]
+                                    
+                                    if isinstance(goals, list):
+                                        for goal in goals:
+                                            st.write(f"- {goal}")
+                                    else:
+                                        st.write(goals)
+                                
+                                if "중기_목표" in roadmap:
+                                    st.markdown("### 중기 목표 (대학)")
+                                    goals = roadmap["중기_목표"]
+                                    
+                                    if isinstance(goals, list):
+                                        for goal in goals:
+                                            st.write(f"- {goal}")
+                                    else:
+                                        st.write(goals)
+                                
+                                if "장기_목표" in roadmap:
+                                    st.markdown("### 장기 목표 (졸업 후)")
+                                    goals = roadmap["장기_목표"]
+                                    
+                                    if isinstance(goals, list):
+                                        for goal in goals:
+                                            st.write(f"- {goal}")
+                                    else:
+                                        st.write(goals)
+                            
+                            with col2:
+                                if "추천_활동" in roadmap:
+                                    st.markdown("### 추천 활동")
+                                    activities = roadmap["추천_활동"]
+                                    
+                                    if isinstance(activities, dict):
+                                        for stage, acts in activities.items():
+                                            st.markdown(f"**{stage}**")
+                                            if isinstance(acts, list):
+                                                for act in acts:
+                                                    st.write(f"- {act}")
+                                            else:
+                                                st.write(acts)
+                                    else:
+                                        st.write(activities)
+                        
+                        # 전체 보고서 다운로드 버튼
+                        st.markdown("---")
+                        st.subheader("📥 분석 보고서 다운로드")
+                        
+                        if st.button("전체 보고서 다운로드"):
+                            report_content = create_downloadable_report(analysis_results, "생활기록부_분석보고서.md")
+                            st.markdown(report_content, unsafe_allow_html=True)
+                        
                     except Exception as e:
                         st.error(f"분석 중 오류가 발생했습니다: {str(e)}")
                         st.stop()
         
         except Exception as e:
             st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
-
-# 분석 결과 페이지
-elif menu == "분석 결과":
-    st.header("📊 생활기록부 분석 결과")
-    
-    if st.session_state.show_analysis and st.session_state.analysis_results:
-        analysis_results = st.session_state.analysis_results
-        
-        # 탭 생성
-        tabs = st.tabs(["학생 프로필", "진로 적합성", "학업 발전 전략", "학부모 상담 가이드", "진로 로드맵"])
-        
-        # 학생 프로필 탭
-        with tabs[0]:
-            st.subheader("👤 학생 프로필 요약")
-            
-            if "학생_프로필" in analysis_results:
-                profile = analysis_results["학생_프로필"]
-                
-                # 프로필 정보 표시
-                col1, col2 = st.columns([2, 1])
-                
-                with col1:
-                    if "기본_정보_요약" in profile:
-                        st.markdown("### 기본 정보")
-                        st.write(profile["기본_정보_요약"])
-                    
-                    if "강점" in profile:
-                        st.markdown("### 강점")
-                        if isinstance(profile["강점"], list):
-                            for item in profile["강점"]:
-                                st.write(f"- {item}")
-                        else:
-                            st.write(profile["강점"])
-                    
-                    if "약점" in profile:
-                        st.markdown("### 개선 필요 사항")
-                        if isinstance(profile["약점"], list):
-                            for item in profile["약점"]:
-                                st.write(f"- {item}")
-                        else:
-                            st.write(profile["약점"])
-                
-                with col2:
-                    # 레이더 차트 표시 (예시)
-                    if "능력_점수" in profile:
-                        st.markdown("### 학생 능력 프로필")
-                        radar_fig = create_radar_chart(profile["능력_점수"])
-                        st.pyplot(radar_fig)
-            else:
-                st.warning("학생 프로필 분석 결과가 없습니다.")
-        
-        # 진로 적합성 탭
-        with tabs[1]:
-            st.subheader("🎯 진로 적합성 분석")
-            
-            if "진로_적합성" in analysis_results:
-                career = analysis_results["진로_적합성"]
-                
-                # 진로 적합성 정보 표시
-                if "일치도" in career:
-                    st.markdown("### 희망 진로와 현재 역량 일치도")
-                    st.write(career["일치도"])
-                
-                if "적합_진로_옵션" in career:
-                    st.markdown("### 추천 진로 옵션")
-                    options = career["적합_진로_옵션"]
-                    
-                    if isinstance(options, list):
-                        for idx, option in enumerate(options):
-                            with st.expander(f"추천 진로 {idx+1}: {option.get('진로명', '')}"):
-                                st.write(f"**적합 이유:** {option.get('적합_이유', '')}")
-                                st.write(f"**보완 필요 사항:** {option.get('보완_필요사항', '')}")
-                    else:
-                        st.write(options)
-                
-                if "권장_계획" in career:
-                    st.markdown("### 진로 성취를 위한 권장 계획")
-                    plans = career["권장_계획"]
-                    
-                    if isinstance(plans, dict):
-                        for stage, plan in plans.items():
-                            st.markdown(f"**{stage}**")
-                            if isinstance(plan, list):
-                                for item in plan:
-                                    st.write(f"- {item}")
-                            else:
-                                st.write(plan)
-                    else:
-                        st.write(plans)
-            else:
-                st.warning("진로 적합성 분석 결과가 없습니다.")
-        
-        # 학업 발전 전략 탭
-        with tabs[2]:
-            st.subheader("📚 학업 발전 전략")
-            
-            if "학업_발전_전략" in analysis_results:
-                academic = analysis_results["학업_발전_전략"]
-                
-                # 학업 발전 전략 정보 표시
-                if "교과목_분석" in academic:
-                    st.markdown("### 교과목별 분석")
-                    subjects = academic["교과목_분석"]
-                    
-                    if isinstance(subjects, dict):
-                        for subject, analysis in subjects.items():
-                            with st.expander(f"교과목: {subject}"):
-                                st.write(f"**현재 성취도:** {analysis.get('현재_성취도', '')}")
-                                st.write(f"**발전 가능성:** {analysis.get('발전_가능성', '')}")
-                                st.write(f"**권장 전략:** {analysis.get('권장_전략', '')}")
-                    else:
-                        st.write(subjects)
-                
-                if "학습_스타일" in academic:
-                    st.markdown("### 학습 스타일 및 효과적인 학습 방법")
-                    st.write(academic["학습_스타일"])
-                
-                if "취약_과목_전략" in academic:
-                    st.markdown("### 취약 과목 개선 전략")
-                    strategies = academic["취약_과목_전략"]
-                    
-                    if isinstance(strategies, dict):
-                        for subject, strategy in strategies.items():
-                            st.markdown(f"**{subject}**")
-                            st.write(strategy)
-                    elif isinstance(strategies, list):
-                        for strategy in strategies:
-                            st.write(f"- {strategy}")
-                    else:
-                        st.write(strategies)
-                
-                if "학업_로드맵" in academic:
-                    st.markdown("### 대학 입시를 고려한 학업 로드맵")
-                    st.write(academic["학업_로드맵"])
-            else:
-                st.warning("학업 발전 전략 분석 결과가 없습니다.")
-        
-        # 학부모 상담 가이드 탭
-        with tabs[3]:
-            st.subheader("👨‍👩‍👧‍👦 학부모 상담 가이드")
-            
-            if "학부모_상담_가이드" in analysis_results:
-                parent = analysis_results["학부모_상담_가이드"]
-                
-                # 학부모 상담 가이드 정보 표시
-                if "현재_상황_평가" in parent:
-                    st.markdown("### 학생의 현재 상황 평가")
-                    st.write(parent["현재_상황_평가"])
-                
-                if "가정_지원_방법" in parent:
-                    st.markdown("### 가정에서의 지원 방법")
-                    methods = parent["가정_지원_방법"]
-                    
-                    if isinstance(methods, list):
-                        for method in methods:
-                            st.write(f"- {method}")
-                    else:
-                        st.write(methods)
-                
-                if "주의사항" in parent:
-                    st.markdown("### 학부모 주의사항")
-                    cautions = parent["주의사항"]
-                    
-                    if isinstance(cautions, list):
-                        for caution in cautions:
-                            st.write(f"- {caution}")
-                    else:
-                        st.write(cautions)
-                
-                if "소통_방법" in parent:
-                    st.markdown("### 효과적인 소통 방법")
-                    st.write(parent["소통_방법"])
-                
-                if "교육적_접근법" in parent:
-                    st.markdown("### 교육적 접근법")
-                    st.write(parent["교육적_접근법"])
-            else:
-                st.warning("학부모 상담 가이드 분석 결과가 없습니다.")
-        
-        # 진로 로드맵 탭
-        with tabs[4]:
-            st.subheader("🗺️ 진로 로드맵")
-            
-            if "진로_로드맵" in analysis_results:
-                roadmap = analysis_results["진로_로드맵"]
-                
-                # 진로 로드맵 정보 표시
-                col1, col2 = st.columns([2, 1])
-                
-                with col1:
-                    if "단기_목표" in roadmap:
-                        st.markdown("### 단기 목표 (고등학교)")
-                        goals = roadmap["단기_목표"]
-                        
-                        if isinstance(goals, list):
-                            for goal in goals:
-                                st.write(f"- {goal}")
-                        else:
-                            st.write(goals)
-                    
-                    if "중기_목표" in roadmap:
-                        st.markdown("### 중기 목표 (대학)")
-                        goals = roadmap["중기_목표"]
-                        
-                        if isinstance(goals, list):
-                            for goal in goals:
-                                st.write(f"- {goal}")
-                        else:
-                            st.write(goals)
-                    
-                    if "장기_목표" in roadmap:
-                        st.markdown("### 장기 목표 (졸업 후)")
-                        goals = roadmap["장기_목표"]
-                        
-                        if isinstance(goals, list):
-                            for goal in goals:
-                                st.write(f"- {goal}")
-                        else:
-                            st.write(goals)
-                
-                with col2:
-                    if "추천_활동" in roadmap:
-                        st.markdown("### 추천 활동")
-                        activities = roadmap["추천_활동"]
-                        
-                        if isinstance(activities, dict):
-                            for stage, acts in activities.items():
-                                st.markdown(f"**{stage}**")
-                                if isinstance(acts, list):
-                                    for act in acts:
-                                        st.write(f"- {act}")
-                                else:
-                                    st.write(acts)
-                        else:
-                            st.write(activities)
-                
-                # 타임라인 표시
-                if "이정표" in roadmap:
-                    st.markdown("### 진로 발전 타임라인")
-                    milestones = roadmap["이정표"]
-                    
-                    if isinstance(milestones, list) and len(milestones) > 0:
-                        # 데이터 형식에 따라 처리
-                        timeline_events = []
-                        for idx, milestone in enumerate(milestones):
-                            if isinstance(milestone, dict) and "제목" in milestone and "날짜" in milestone:
-                                timeline_events.append({
-                                    "title": milestone["제목"],
-                                    "date": milestone["날짜"]
-                                })
-                            elif isinstance(milestone, str):
-                                # 문자열인 경우 가상의 날짜 설정
-                                timeline_events.append({
-                                    "title": milestone,
-                                    "date": f"{datetime.now().year + idx}-01-01"
-                                })
-                        
-                        if timeline_events:
-                            timeline_fig = plot_timeline(timeline_events)
-                            st.pyplot(timeline_fig)
-                    else:
-                        st.write(milestones)
-            else:
-                st.warning("진로 로드맵 분석 결과가 없습니다.")
-        
-        # 전체 보고서 다운로드 버튼
-        st.markdown("---")
-        st.subheader("📥 분석 보고서 다운로드")
-        
-        if st.button("전체 보고서 다운로드"):
-            # 보고서 내용 생성
-            report_content = "# 생활기록부 분석 보고서\n\n"
-            report_content += f"생성 일시: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-            
-            # 학생 기본 정보
-            if st.session_state.student_info:
-                report_content += "## 학생 기본 정보\n\n"
-                for key, value in st.session_state.student_info.items():
-                    if key != '진로정보':
-                        report_content += f"- {key}: {value}\n"
-                
-                if '진로정보' in st.session_state.student_info:
-                    report_content += "\n### 진로 희망사항\n\n"
-                    for key, value in st.session_state.student_info['진로정보'].items():
-                        report_content += f"- {key}: {value}\n"
-            
-            # 분석 결과
-            if "학생_프로필" in analysis_results:
-                report_content += "\n## 학생 프로필 요약\n\n"
-                profile = analysis_results["학생_프로필"]
-                
-                if "기본_정보_요약" in profile:
-                    report_content += f"### 기본 정보\n\n{profile['기본_정보_요약']}\n\n"
-                
-                if "강점" in profile:
-                    report_content += "### 강점\n\n"
-                    if isinstance(profile["강점"], list):
-                        for item in profile["강점"]:
-                            report_content += f"- {item}\n"
-                    else:
-                        report_content += f"{profile['강점']}\n\n"
-                
-                if "약점" in profile:
-                    report_content += "### 개선 필요 사항\n\n"
-                    if isinstance(profile["약점"], list):
-                        for item in profile["약점"]:
-                            report_content += f"- {item}\n"
-                    else:
-                        report_content += f"{profile['약점']}\n\n"
-            
-            # 진로 적합성
-            if "진로_적합성" in analysis_results:
-                report_content += "\n## 진로 적합성 분석\n\n"
-                career = analysis_results["진로_적합성"]
-                
-                if "일치도" in career:
-                    report_content += f"### 희망 진로와 현재 역량 일치도\n\n{career['일치도']}\n\n"
-                
-                if "적합_진로_옵션" in career:
-                    report_content += "### 추천 진로 옵션\n\n"
-                    options = career["적합_진로_옵션"]
-                    
-                    if isinstance(options, list):
-                        for idx, option in enumerate(options):
-                            report_content += f"#### 추천 진로 {idx+1}: {option.get('진로명', '')}\n\n"
-                            report_content += f"- 적합 이유: {option.get('적합_이유', '')}\n"
-                            report_content += f"- 보완 필요 사항: {option.get('보완_필요사항', '')}\n\n"
-                    else:
-                        report_content += f"{options}\n\n"
-            
-            # 나머지 섹션도 유사하게 추가...
-            
-            # 다운로드 링크 생성
-            download_link = create_downloadable_report(report_content, "생활기록부_분석보고서.md")
-            st.markdown(download_link, unsafe_allow_html=True)
-    
-    else:
-        st.info("분석 결과가 없습니다. '파일 업로드' 메뉴에서 파일을 업로드하고 분석을 진행해주세요.")
 
 # 도움말 페이지
 elif menu == "도움말":
