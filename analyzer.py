@@ -466,7 +466,36 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
             import requests
             
             # 영문 텍스트만 사용 (ASCII 범위 내)
-            analysis_prompt = "Analyze student data and provide comprehensive insights."
+            analysis_prompt = """
+Analyze student data and provide detailed insights on:
+
+1. Academic capabilities
+   - Overall academic performance and trends
+   - Subject-specific strengths and weaknesses
+   - Learning attitude and participation
+
+2. Student characteristics
+   - Personality traits and behavioral patterns
+   - Notable skills and interests
+   - Interpersonal relationships and leadership qualities
+
+3. Career suitability
+   - Connection between career aspirations and current abilities
+   - Preparation status for desired career paths
+   - Development potential and areas needing improvement
+
+4. Comprehensive recommendations
+   - Key strengths and distinctive features
+   - Specific advice for future development (at least 5 detailed points)
+   - Recommended activities for career realization (at least 5 specific activities)
+   - Strategies for academic improvement (at least 3 detailed strategies)
+   - Personal growth suggestions (at least 3 points)
+
+Please provide an extensive analysis with multiple paragraphs for each section. 
+For the recommendations section, please be very specific and detailed.
+Respond in Korean with a positive and constructive perspective.
+The total response should be at least 1000 words.
+"""
             
             # API 요청 데이터 (모든 값이 ASCII 범위 내)
             headers = {
@@ -485,7 +514,7 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
                         "content": analysis_prompt
                     }
                 ],
-                "system": "You are an educational expert. Respond in Korean."
+                "system": "You are an educational expert analyzing student data. Your task is to provide an extremely detailed and comprehensive analysis. You must write extensive explanations for each section and give multiple specific, actionable recommendations. Always respond in Korean with a minimum of 1000 words total. Format your response with proper markdown headings, subheadings, bullet points, and numbered lists for readability."
             }
             
             # API 호출 - JSON 대신 인코딩된 문자열 사용
