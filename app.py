@@ -216,38 +216,18 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # 커스텀 CSS - 여백 줄이기
+    # 커스텀 CSS - 최소화하여 충돌 방지
     st.markdown("""
     <style>
         .block-container {
             padding-top: 1rem;
             padding-bottom: 1rem;
         }
-        .st-emotion-cache-16idsys {
-            padding-top: 1rem;
-            padding-bottom: 0.5rem;
-        }
-        .st-emotion-cache-13ln4jf {
-            padding-top: 0.5rem;
-            padding-bottom: 0.5rem;
-        }
-        div[data-testid="stVerticalBlock"] {
-            gap: 0.5rem;
-        }
-        .main-header {
-            font-size: 36px !important;
-            text-align: center;
-            margin-bottom: 20px;
-            color: #1E3A8A;
-        }
         .section-header {
             font-size: 24px !important;
             color: #2563EB;
             margin-top: 10px;
             margin-bottom: 10px;
-        }
-        div[data-testid="stHorizontalBlock"] {
-            gap: 0.5rem;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -267,17 +247,23 @@ def main():
         st.markdown("---")
         st.markdown("© 2025 학생부 분석기 Made by 공지훈")
 
-    # "파일을 처리 중입니다" 메시지 문제 해결
-    if 'show_loading' not in st.session_state:
-        st.session_state.show_loading = False
+    # 상단에 디버깅용 메시지 추가
+    st.write("메뉴가 아래에 표시됩니다")
 
-    # 먼저 탭 생성 - UI의 기본 구조를 항상 표시
-    tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
+    # 탭 생성 - 간단한 형태로 먼저 시도
+    try:
+        tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
+        st.write("탭이 생성되었습니다") # 디버깅용 메시지
+    except Exception as e:
+        st.error(f"탭 생성 중 오류 발생: {str(e)}")
     
     # 파일이 업로드되지 않은 경우 안내 메시지 표시
     if not uploaded_file:
-        with tab1, tab2, tab3, tab4:
-            st.info("분석을 시작하려면, 좌측 사이드바에서 CSV 파일을 업로드해주세요.")
+        try:
+            with tab1, tab2, tab3, tab4:
+                st.info("분석을 시작하려면, 좌측 사이드바에서 CSV 파일을 업로드해주세요.")
+        except Exception as e:
+            st.error(f"탭 내용 표시 중 오류 발생: {str(e)}")
         return  # 여기서 함수 종료
         
     # 업로드된 파일 처리
