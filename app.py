@@ -207,14 +207,30 @@ def process_uploaded_file(uploaded_file):
 def main():
     # 페이지 설정
     st.set_page_config(
-        page_title="학생 진학카드 분석기",
+        page_title="학생 생활기록부 분석",
         page_icon="📊",
-        layout="wide"
+        layout="wide",
+        initial_sidebar_state="expanded"
     )
     
-    # 스타일시트 적용
+    # 커스텀 CSS - 여백 줄이기
     st.markdown("""
     <style>
+        .block-container {
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+        .st-emotion-cache-16idsys {
+            padding-top: 1rem;
+            padding-bottom: 0.5rem;
+        }
+        .st-emotion-cache-13ln4jf {
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+        div[data-testid="stVerticalBlock"] {
+            gap: 0.5rem;
+        }
         .main-header {
             font-size: 36px !important;
             text-align: center;
@@ -224,66 +240,91 @@ def main():
         .section-header {
             font-size: 24px !important;
             color: #2563EB;
-            margin-top: 20px;
+            margin-top: 10px;
             margin-bottom: 10px;
-        }
-        .data-container {
-            background-color: #F3F4F6;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-        .streamlit-expanderHeader {
-            font-size: 18px !important;
-            font-weight: bold;
-        }
-        .special-note-block {
-            background-color: #EFF6FF;
-            padding: 15px;
-            border-left: 4px solid #2563EB;
-            margin-bottom: 10px;
-            border-radius: 0px 5px 5px 0px;
-        }
-        .grade-box {
-            background-color: #E0E7FF;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 5px;
-        }
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 10px;
-        }
-        .stTabs [data-baseweb="tab"] {
-            height: 50px;
-            white-space: pre-wrap;
-            background-color: #F3F4F6;
-            border-radius: 5px 5px 0px 0px;
-        }
-        .stTabs [aria-selected="true"] {
-            background-color: #DBEAFE;
         }
     </style>
     """, unsafe_allow_html=True)
     
-    # 페이지 헤더
-    st.markdown('<h1 class="main-header">📊 학생 진학카드 분석기</h1>', unsafe_allow_html=True)
+    # 앱 타이틀
+    st.markdown('<h1 class="main-header">📚 학생부 분석 시스템</h1>', unsafe_allow_html=True)
+    st.markdown("---")
+
+    # 사이드바
+    with st.sidebar:
+        st.title("학생부 분석기")
+        st.write("""
+        이 앱은 학생의 학생부 데이터를 분석하여 
+        학생의 특성과 진로 적합성을 파악하는 도구입니다.
+        """)
+        st.markdown("---")
+        st.markdown("© 2025 학생부 분석기 Made by 공지훈")
+
+        # 사이드바에 파일 업로더 배치
+        st.header("데이터 업로드")
+        uploaded_file = st.file_uploader("CSV 파일을 업로드하세요", type=['csv'])
     
-    # 파일 업로드 섹션
-    st.markdown('<h2 class="section-header">📁 파일 업로드</h2>', unsafe_allow_html=True)
-    uploaded_file = st.file_uploader("진학카드 CSV 파일을 업로드하세요", type=['csv'])
-    
-    if uploaded_file is not None:
+        if uploaded_file:
+            st.success("파일이 성공적으로 업로드되었습니다!")
+
+    # 메인 컨텐츠 영역
+    if uploaded_file:
         try:
+            st.info("파일을 처리 중입니다. 잠시만 기다려주세요...")
+            
             # 파일 처리 및 학생 정보 추출
             student_info = process_uploaded_file(uploaded_file)
             
-            if student_info:
+            # CSV 내용 직접 분석
+            try:
+                if 'analyze_csv_directly' not in locals() and 'analyze_csv_directly' not in globals():
+                    from analyzer import analyze_csv_directly
+                
+                # 파일 내용 읽기
+                file_content = uploaded_file.getvalue().decode('utf-8')
+                analysis_result = analyze_csv_directly(file_content)
+                student_info["ai_analysis"] = analysis_result
+            except Exception as e:
+                st.error(f"AI 분석 중 오류가 발생했습니다: {str(e)}")
+                student_info["ai_analysis"] = "분석 중 오류가 발생했습니다."
+            
+            # 학생 정보가 비어있으면 예외 발생
+            if not student_info:
+                st.warning("학생 정보를 충분히 추출할 수 없습니다. 일부 기능이 제한될 수 있습니다.")
+            else:
                 # 탭 생성
-                tab1, tab2, tab3 = st.tabs(["📝 세부 특기사항", "📈 성적 분석", "🤖 AI 분석"])
+                tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
                 
                 with tab1:
-                    st.markdown('<h2 class="section-header">📝 세부 특기사항 및 활동</h2>', unsafe_allow_html=True)
-                    display_special_notes(student_info)
+                    st.markdown('<h2 class="section-header">📊 원본 데이터</h2>', unsafe_allow_html=True)
+                    
+                    # 세특 데이터 표시
+                    st.markdown("### 세부능력 및 특기사항")
+                    
+                    # 과목별 세특 표시
+                    if 'special_notes' in student_info and 'subjects' in student_info['special_notes'] and student_info['special_notes']['subjects']:
+                        subjects_df = pd.DataFrame({
+                            '과목': list(student_info['special_notes']['subjects'].keys()),
+                            '내용': list(student_info['special_notes']['subjects'].values())
+                        })
+                        st.dataframe(subjects_df, use_container_width=True)
+                    else:
+                        st.info("과목별 세특 데이터가 없습니다.")
+                    
+                    # 활동별 세특 표시
+                    if 'special_notes' in student_info and 'activities' in student_info['special_notes'] and student_info['special_notes']['activities']:
+                        st.markdown("### 활동별 특기사항")
+                        activities_df = pd.DataFrame({
+                            '활동': list(student_info['special_notes']['activities'].keys()),
+                            '내용': list(student_info['special_notes']['activities'].values())
+                        })
+                        st.dataframe(activities_df, use_container_width=True)
+                    else:
+                        st.info("활동별 세특 데이터가 없습니다.")
+                    
+                    # 성적 데이터 표시
+                    st.markdown("### 성적 데이터")
+                    display_grade_data(student_info)
                 
                 with tab2:
                     st.markdown('<h2 class="section-header">📈 성적 분석</h2>', unsafe_allow_html=True)
@@ -298,37 +339,44 @@ def main():
                     semester1_credits = []
                     semester2_credits = []
                     
-                    # 메인 과목 데이터 (5과목)
+                    # 메인 과목 데이터 수집 (5과목)
                     for subject in main_subjects:
+                        subject_found = False
                         # 1학기 데이터
                         if 'semester1' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester1']:
-                            if subject in student_info['academic_records']['semester1']['grades']:
-                                semester1_grades.append(student_info['academic_records']['semester1']['grades'][subject]['rank'])
-                                if 'credit' in student_info['academic_records']['semester1']['grades'][subject]:
-                                    semester1_credits.append(student_info['academic_records']['semester1']['grades'][subject]['credit'])
-                                else:
-                                    semester1_credits.append(1)  # 기본 학점수 1
-                            else:
-                                semester1_grades.append(0)
-                                semester1_credits.append(0)
-                        else:
+                            for db_subject, grade_info in student_info['academic_records']['semester1']['grades'].items():
+                                if subject.lower() in db_subject.lower():
+                                    semester1_grades.append(grade_info['rank'])
+                                    if 'credit' in grade_info:
+                                        semester1_credits.append(grade_info['credit'])
+                                    else:
+                                        semester1_credits.append(1)  # 기본 학점수 1
+                                    subject_found = True
+                                    break
+                        
+                        if not subject_found:
                             semester1_grades.append(0)
                             semester1_credits.append(0)
                         
+                        subject_found = False
                         # 2학기 데이터
                         if 'semester2' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester2']:
-                            if subject in student_info['academic_records']['semester2']['grades']:
-                                semester2_grades.append(student_info['academic_records']['semester2']['grades'][subject]['rank'])
-                                if 'credit' in student_info['academic_records']['semester2']['grades'][subject]:
-                                    semester2_credits.append(student_info['academic_records']['semester2']['grades'][subject]['credit'])
-                                else:
-                                    semester2_credits.append(1)  # 기본 학점수 1
-                            else:
-                                semester2_grades.append(0)
-                                semester2_credits.append(0)
-                        else:
+                            for db_subject, grade_info in student_info['academic_records']['semester2']['grades'].items():
+                                if subject.lower() in db_subject.lower():
+                                    semester2_grades.append(grade_info['rank'])
+                                    if 'credit' in grade_info:
+                                        semester2_credits.append(grade_info['credit'])
+                                    else:
+                                        semester2_credits.append(1)  # 기본 학점수 1
+                                    subject_found = True
+                                    break
+                        
+                        if not subject_found:
                             semester2_grades.append(0)
                             semester2_credits.append(0)
+                    
+                    # 디버깅 정보
+                    print(f"수집된 데이터 - 1학기: {semester1_grades}, 2학기: {semester2_grades}")
                     
                     # 0인 값은 제외하고 표시할 과목과 데이터 준비
                     valid_subjects = []
@@ -344,6 +392,11 @@ def main():
                             valid_sem2_grades.append(semester2_grades[i])
                             valid_sem1_credits.append(semester1_credits[i])
                             valid_sem2_credits.append(semester2_credits[i])
+                    
+                    # 디버깅 정보
+                    print(f"유효 과목: {valid_subjects}")
+                    print(f"유효 1학기 등급: {valid_sem1_grades}")
+                    print(f"유효 2학기 등급: {valid_sem2_grades}")
                     
                     # 차트 생성 - 등급을 그래프 높이로 변환 (1등급=9칸, 9등급=1칸)
                     if valid_subjects:
@@ -412,7 +465,7 @@ def main():
                         for g, c in zip(valid_sem1_grades, valid_sem1_credits):
                             if g > 0 and c > 0:
                                 # 학점 가중치를 적용한 등급 계산 (학점이 클수록 등급이 좋아짐)
-                                # 예: 3등급, 3학점 => 3 - (3-1)*0.1 = 2.8등급
+                                # 예: 3등급, 3학점 => 3 - (3-1)*0.2 = 2.6등급
                                 adjusted = max(1, g - (c-1) * 0.2)
                                 sem1_adjusted.append(adjusted)
                                 sem1_adjusted_labels.append(f"{adjusted:.1f}")
@@ -513,20 +566,16 @@ def main():
                     all_sem1_grades = []
                     all_sem2_grades = []
                     
-                    for subject in all_subjects:
-                        # 1학기 등급
-                        if 'semester1' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester1']:
-                            if subject in student_info['academic_records']['semester1']['grades']:
-                                grade = student_info['academic_records']['semester1']['grades'][subject]['rank']
-                                if grade > 0:
-                                    all_sem1_grades.append(grade)
-                        
-                        # 2학기 등급
-                        if 'semester2' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester2']:
-                            if subject in student_info['academic_records']['semester2']['grades']:
-                                grade = student_info['academic_records']['semester2']['grades'][subject]['rank']
-                                if grade > 0:
-                                    all_sem2_grades.append(grade)
+                    # 모든 과목 순회
+                    if 'semester1' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester1']:
+                        for subject, grade_info in student_info['academic_records']['semester1']['grades'].items():
+                            if 'rank' in grade_info and grade_info['rank'] > 0:
+                                all_sem1_grades.append(grade_info['rank'])
+                    
+                    if 'semester2' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester2']:
+                        for subject, grade_info in student_info['academic_records']['semester2']['grades'].items():
+                            if 'rank' in grade_info and grade_info['rank'] > 0:
+                                all_sem2_grades.append(grade_info['rank'])
                     
                     if all_sem1_grades:
                         semester1_avg_7 = sum(all_sem1_grades) / len(all_sem1_grades)
@@ -555,25 +604,33 @@ def main():
                             st.metric("2학기 평균 등급 (5과목)", "N/A")
                     
                     # 7과목 평균 표시
-                    st.markdown("##### 참고: 7과목 평균 (국어, 영어, 수학, 사회, 과학, 한국사, 정보)")
+                    st.markdown("##### 참고: 모든 과목 평균")
                     col1, col2 = st.columns(2)
                     
                     with col1:
                         if semester1_avg_7 > 0:
-                            st.metric("1학기 평균 등급 (7과목)", f"{semester1_avg_7:.2f}")
+                            st.metric("1학기 평균 등급 (전체)", f"{semester1_avg_7:.2f}")
                         else:
-                            st.metric("1학기 평균 등급 (7과목)", "N/A")
+                            st.metric("1학기 평균 등급 (전체)", "N/A")
                     
                     with col2:
                         if semester2_avg_7 > 0:
                             delta = semester1_avg_7 - semester2_avg_7 if semester1_avg_7 > 0 else None
                             delta_color = "inverse" if delta and delta > 0 else "normal"
-                            st.metric("2학기 평균 등급 (7과목)", f"{semester2_avg_7:.2f}", delta=f"{delta:.2f}" if delta else None, delta_color=delta_color)
+                            st.metric("2학기 평균 등급 (전체)", f"{semester2_avg_7:.2f}", delta=f"{delta:.2f}" if delta else None, delta_color=delta_color)
                         else:
-                            st.metric("2학기 평균 등급 (7과목)", "N/A")
+                            st.metric("2학기 평균 등급 (전체)", "N/A")
                 
                 with tab3:
-                    st.markdown('<h2 class="section-header">🤖 AI 분석 결과</h2>', unsafe_allow_html=True)
+                    st.markdown('<h2 class="section-header">📋 세부능력 및 특기사항</h2>', unsafe_allow_html=True)
+                    
+                    # 교과별 세특
+                    st.markdown('<h3 class="subsection-header">🎓 교과별 세특</h3>', unsafe_allow_html=True)
+                    
+                    display_special_notes(student_info)
+                
+                with tab4:
+                    st.markdown('<h2 class="section-header">🤖 AI 분석</h2>', unsafe_allow_html=True)
                     
                     if "ai_analysis" in student_info:
                         st.markdown(student_info["ai_analysis"])

@@ -198,11 +198,21 @@ def create_activity_timeline(activities: List[Dict[str, Any]]) -> go.Figure:
 
 def analyze_csv_directly(csv_content):
     """CSV 데이터를 직접 분석합니다."""
-    prompt = f"""
-다음은 학생 진학 카드 CSV 데이터입니다. 이 데이터를 분석하여 학생의 특성과 발전 가능성을 분석해주세요.
-
-CSV 데이터:
-{csv_content}
+    try:
+        # API 키 가져오기 (환경변수 또는 Streamlit secrets)
+        anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not anthropic_api_key and 'anthropic' in st.secrets:
+            anthropic_api_key = st.secrets["anthropic"]["api_key"]
+        
+        if not anthropic_api_key:
+            return "API 키가 설정되지 않았습니다. .env 파일에 ANTHROPIC_API_KEY를 설정하세요."
+        
+        # API 호출
+        client = anthropic.Anthropic(api_key=anthropic_api_key)
+        
+        # 프롬프트 준비
+        prompt = f"""
+학생 진학 카드 CSV 데이터를 기반으로 학생의 특성과 발전 가능성을 분석해주세요.
 
 위 데이터를 바탕으로 다음 항목들을 분석해주세요:
 
@@ -230,7 +240,38 @@ CSV 데이터:
 학생의 강점을 최대한 살리고 약점을 보완할 수 있는 방안을 제시하세요.
 권장하는 활동과 고려할 전략은 구체적이고 실행 가능한 것으로 제안해주세요.
 """
-    return analyze_with_claude(prompt)
+        
+        # 로그 추가
+        logging.info("CSV 파일 직접 분석 중...")
+        
+        # 직접 API 호출 (CSV 내용 없이 기본 프롬프트만 사용)
+        try:
+            message = client.messages.create(
+                model="claude-3-7-sonnet-20250219",
+                max_tokens=4000,
+                system="당신은 학생 데이터를 분석하는 교육 전문가입니다. 주어진 학생 데이터를 분석하여 학생의 강점, 약점, 진로 적합성 등을 종합적으로 평가해주세요. 항상 한국어로 응답하세요.",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            
+            # 응답 처리
+            if message.content:
+                result_text = ""
+                for content_item in message.content:
+                    if content_item.type == "text":
+                        result_text += content_item.text
+                return result_text
+            else:
+                return "API 응답에서 내용을 찾을 수 없습니다."
+                
+        except Exception as api_error:
+            logging.error(f"API 호출 오류: {str(api_error)}")
+            return "AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+            
+    except Exception as e:
+        logging.error(f"CSV 분석 준비 오류: {str(e)}")
+        return "CSV 분석 중 오류가 발생했습니다."
 
 def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
     """학생 생활기록부를 분석하여 종합적인 결과를 반환합니다."""
