@@ -58,8 +58,8 @@ def extract_student_info(df):
         # 학기별 성적
         grades = []
         # 성적 데이터가 있는 행 찾기
-        grade_start_idx = df[df['학기'].notna()].index[0]
-        grade_data = df.iloc[grade_start_idx:].copy()
+        grade_section = df[df.iloc[:, 0] == '학기'].index[0]
+        grade_data = df.iloc[grade_section+1:].copy()
         
         if not grade_data.empty:
             # 성적 데이터 컬럼명 설정
