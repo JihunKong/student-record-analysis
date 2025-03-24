@@ -226,24 +226,79 @@ def analyze_with_claude(prompt):
 def analyze_csv_directly(csv_content):
     """CSV 데이터를 직접 분석합니다."""
     try:
-        # 기본 분석 지침
-        analysis_instruction = """
-학생 데이터를 분석하여 학생의 특성과 발전 가능성을 분석해주세요. 다음 항목들을 포함해주세요:
-
-1. 학업 역량 분석
-2. 학생 특성 분석
-3. 진로 적합성 분석
-4. 종합 제언
-
-분석은 긍정적이고 발전적인 관점에서 작성해주세요.
-"""
-        # 통합 API 호출 함수 사용
-        system_prompt = "당신은 학생 데이터를 분석하는 교육 전문가입니다. 항상 한국어로 응답하세요."
-        return call_claude_api(analysis_instruction, system_prompt)
+        # API 키 가져오기
+        anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not anthropic_api_key and 'anthropic' in st.secrets:
+            anthropic_api_key = st.secrets["anthropic"]["api_key"]
         
+        if not anthropic_api_key:
+            return "API 키가 설정되지 않았습니다."
+            
+        # CSV 내용 샘플링 (너무 큰 경우)
+        if len(csv_content) > 2000:
+            csv_sample = csv_content[:2000] + "...(truncated)"
+        else:
+            csv_sample = csv_content
+            
+        # 영문 프롬프트 (ASCII 범위 내)
+        prompt = f"""
+Please analyze the following student data from the CSV file:
+
+CSV Data:
+{csv_sample}
+
+Provide insights on:
+1. Academic capabilities
+2. Student characteristics 
+3. Career suitability
+4. Recommendations
+
+Respond in Korean with detailed analysis.
+"""
+        
+        # API 요청 헤더
+        headers = {
+            "Content-Type": "application/json",
+            "X-Api-Key": anthropic_api_key,
+            "Anthropic-Version": "2023-06-01"
+        }
+        
+        # API 요청 페이로드
+        payload = {
+            "model": "claude-3-7-sonnet-20250219",
+            "max_tokens": 4000,
+            "messages": [
+                {
+                    "role": "user", 
+                    "content": prompt
+                }
+            ]
+        }
+        
+        # API 호출
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            json=payload,
+            headers=headers
+        )
+        
+        # 응답 확인 및 반환
+        if response.status_code == 200:
+            result = response.json()
+            
+            # 텍스트만 추출
+            result_text = ""
+            if "content" in result:
+                for item in result["content"]:
+                    if item.get("type") == "text":
+                        result_text += item.get("text", "")
+            
+            return result_text or "응답이 비어있습니다."
+        else:
+            return f"API 호출 실패 (상태 코드: {response.status_code})"
+    
     except Exception as e:
-        logging.error(f"분석 오류: {str(e)}")
-        return f"AI 분석 중 오류가 발생했습니다: {str(e)}"
+        return f"CSV 분석 중 오류 발생: {str(e)}"
 
 def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
     """학생 생활기록부를 분석하여 종합적인 결과를 반환합니다."""
