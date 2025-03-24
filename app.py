@@ -24,12 +24,12 @@ st.set_page_config(
 )
 
 # Gemini API 설정
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-if not GOOGLE_API_KEY:
-    st.error("GOOGLE_API_KEY 환경 변수가 설정되지 않았습니다.")
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+if not GEMINI_API_KEY:
+    st.error("GitHub 환경변수에 GEMINI_API_KEY가 설정되지 않았습니다.")
     st.stop()
 
-genai.configure(api_key=GOOGLE_API_KEY)
+genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-pro')
 
 # 앱 타이틀
