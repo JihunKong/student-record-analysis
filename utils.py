@@ -66,19 +66,25 @@ def preprocess_csv(file):
 
 def convert_to_python_type(obj):
     """NumPy 타입을 Python 기본 타입으로 변환합니다."""
+    if obj is None:
+        return None
     if isinstance(obj, (np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64,
                        np.uint8, np.uint16, np.uint32, np.uint64)):
         return int(obj)
-    elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+    if isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
         return float(obj)
-    elif isinstance(obj, (np.bool_)):
+    if isinstance(obj, (np.bool_)):
         return bool(obj)
-    elif isinstance(obj, (np.ndarray,)):
+    if isinstance(obj, (np.ndarray,)):
         return obj.tolist()
-    elif isinstance(obj, pd.Series):
+    if isinstance(obj, pd.Series):
         return obj.tolist()
-    elif pd.isna(obj):
+    if pd.isna(obj):
         return None
+    if isinstance(obj, dict):
+        return {key: convert_to_python_type(value) for key, value in obj.items()}
+    if isinstance(obj, list):
+        return [convert_to_python_type(item) for item in obj]
     return obj
 
 def extract_student_info(df_tuple):

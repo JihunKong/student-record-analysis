@@ -145,9 +145,12 @@ def analyze_with_gemini(prompt: str) -> Dict[str, Any]:
             
             # JSON 파싱 시도
             try:
-                result = json.loads(json_str)
-            except json.JSONDecodeError:
-                # JSON 파싱 실패 시 직접 변환 시도
+                # 먼저 문자열을 Python 객체로 변환
+                python_obj = eval(json_str)
+                # Python 객체를 JSON으로 직렬화
+                result = json.loads(json.dumps(python_obj, cls=NumpyEncoder))
+            except (json.JSONDecodeError, SyntaxError):
+                # 직접 변환 시도
                 result = json.loads(json.dumps(eval(json_str), cls=NumpyEncoder))
             
             return result
