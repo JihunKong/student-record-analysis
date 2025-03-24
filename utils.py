@@ -18,16 +18,18 @@ def preprocess_csv(uploaded_file) -> pd.DataFrame:
         # UTF-8 실패시 CP949로 시도
         df = pd.read_csv(uploaded_file, encoding='cp949')
     
-    # 빈 컬럼 제거
-    df = df.dropna(axis=1, how='all')
-    
-    # 컬럼명 전처리
+    # 컬럼명에서 공백 제거
     df.columns = df.columns.str.strip()
     
-    # 필수 컬럼 확인
+    # 필수 컬럼 목록
     required_columns = ['국어', '수학', '영어', '한국사', '사회', '과학', '과학탐구실험', '정보', '체육', '음악', '미술']
-    missing_columns = [col for col in required_columns if col not in df.columns]
-    if missing_columns:
+    
+    # 실제 컬럼 목록
+    actual_columns = [col for col in df.columns if col in required_columns]
+    
+    # 필수 컬럼이 모두 있는지 확인
+    if len(actual_columns) != len(required_columns):
+        missing_columns = [col for col in required_columns if col not in actual_columns]
         raise ValueError(f"다음 필수 컬럼이 누락되었습니다: {', '.join(missing_columns)}")
     
     return df
