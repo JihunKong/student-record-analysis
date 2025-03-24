@@ -115,44 +115,65 @@ def analyze_with_gemini(prompt: str) -> Dict[str, Any]:
     try:
         response = model.generate_content(prompt)
         
-        # JSON 문자열 추출 및 파싱
+        # 응답 텍스트 추출
+        response_text = response.text
+        
+        # React 컴포넌트 코드 추출
+        react_code = None
+        css_code = None
+        usage_guide = None
+        
+        # React 코드 블록 찾기
+        if '```jsx' in response_text or '```react' in response_text:
+            code_blocks = response_text.split('```')
+            for i, block in enumerate(code_blocks):
+                if block.startswith('jsx') or block.startswith('react'):
+                    react_code = code_blocks[i+1].strip()
+                elif block.startswith('css'):
+                    css_code = code_blocks[i+1].strip()
+        
+        # JSON 데이터 추출 및 파싱
         try:
-            # 응답에서 JSON 부분 추출
-            json_str = response.text
+            # JSON 부분 찾기
+            json_str = None
+            if '```json' in response_text:
+                json_str = response_text.split('```json')[1].split('```')[0].strip()
+            else:
+                # JSON 블록이 없는 경우 마지막 코드 블록 이후의 텍스트에서 JSON 찾기
+                parts = response_text.split('```')
+                for part in parts:
+                    if '{' in part and '}' in part:
+                        json_str = part.strip()
+                        break
             
-            # 마크다운 코드 블록에서 JSON 추출
-            if '```json' in json_str:
-                json_str = json_str.split('```json')[1].split('```')[0].strip()
-            elif '```' in json_str:
-                json_str = json_str.split('```')[1].split('```')[0].strip()
+            if not json_str:
+                raise Exception("JSON 데이터를 찾을 수 없습니다.")
             
-            try:
-                # 직접 JSON 파싱 시도
-                result = json.loads(json_str)
-            except json.JSONDecodeError:
-                # JSON 파싱 실패 시 문자열 정리 후 다시 시도
-                # 줄바꿈, 탭, 공백 등 정리
-                json_str = json_str.replace('\n', ' ').replace('\t', ' ')
-                # 연속된 공백을 하나로
-                json_str = ' '.join(json_str.split())
-                # 작은따옴표를 큰따옴표로 변환
-                json_str = json_str.replace("'", '"')
-                # 따옴표 없는 키에 따옴표 추가
-                import re
-                json_str = re.sub(r'([{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', json_str)
-                
-                try:
-                    result = json.loads(json_str)
-                except json.JSONDecodeError as e:
-                    print(f"JSON 파싱 오류: {e}")
-                    print(f"정리된 JSON 문자열: {json_str}")
-                    raise Exception("JSON 파싱에 실패했습니다. 응답 형식이 올바르지 않습니다.")
+            # JSON 문자열 정리
+            json_str = json_str.replace('\n', ' ').replace('\t', ' ')
+            json_str = ' '.join(json_str.split())
+            json_str = json_str.replace("'", '"')
+            
+            # 따옴표 없는 키에 따옴표 추가
+            import re
+            json_str = re.sub(r'([{,])\s*([a-zA-Z_가-힣][a-zA-Z0-9_가-힣]*)\s*:', r'\1"\2":', json_str)
+            
+            # JSON 파싱
+            result = json.loads(json_str)
+            
+            # React 관련 코드가 있으면 결과에 추가
+            if react_code or css_code:
+                result['시각화_코드'] = {
+                    'react_component': react_code or '',
+                    'css_styles': css_code or '',
+                    '설명': usage_guide or '컴포넌트를 사용하기 전에 필요한 라이브러리를 설치하세요.'
+                }
             
             return result
             
         except Exception as e:
             print(f"응답 처리 오류: {e}")
-            print(f"원본 응답: {response.text}")
+            print(f"원본 응답: {response_text}")
             raise Exception(f"응답 처리 중 오류가 발생했습니다: {str(e)}")
             
     except Exception as e:
