@@ -29,8 +29,8 @@ if not GEMINI_API_KEY:
     st.error("GitHub 환경변수에 GEMINI_API_KEY가 설정되지 않았습니다.")
     st.stop()
 
-client = genai.Client(api_key=GEMINI_API_KEY)
-model = client.get_model('gemini-2.0-flash')
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-pro')
 
 # 앱 타이틀
 st.title("📚 생활기록부 분석 및 시각화 자동화 프로그램")
