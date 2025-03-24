@@ -185,20 +185,18 @@ def process_uploaded_file(uploaded_file):
         logging.info("CSV 파일 분석 준비 중...")
         
         try:
-            # analyzer.py의 analyze_student_record 직접 호출
-            from analyzer import analyze_student_record as analyzer_analyze
+            # 원본 CSV 내용을 직접 AI에 전달하여 분석
+            from analyzer import analyze_csv_directly
             
-            # 분석 결과 얻기
-            analysis_result = analyzer_analyze(student_info)
+            # CSV 파일 원본 내용으로 AI 분석 실행
+            analysis_result = analyze_csv_directly(file_content)
             
-            if "analysis" in analysis_result:
-                student_info["ai_analysis"] = analysis_result["analysis"]
-            else:
-                student_info["ai_analysis"] = "분석 결과를 얻을 수 없습니다."
+            # 분석 결과 저장
+            student_info["ai_analysis"] = analysis_result
                 
         except Exception as e:
             logging.error(f"AI 분석 중 오류 발생: {str(e)}")
-            student_info["ai_analysis"] = "AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+            student_info["ai_analysis"] = f"AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요. (오류: {str(e)})"
         
         return student_info
         
