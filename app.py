@@ -247,23 +247,13 @@ def main():
         st.markdown("---")
         st.markdown("© 2025 학생부 분석기 Made by 공지훈")
 
-    # 상단에 디버깅용 메시지 추가
-    st.write("메뉴가 아래에 표시됩니다")
-
-    # 탭 생성 - 간단한 형태로 먼저 시도
-    try:
-        tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
-        st.write("탭이 생성되었습니다") # 디버깅용 메시지
-    except Exception as e:
-        st.error(f"탭 생성 중 오류 발생: {str(e)}")
+    # 탭 생성 - 디버그 메시지 제거
+    tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
     
     # 파일이 업로드되지 않은 경우 안내 메시지 표시
     if not uploaded_file:
-        try:
-            with tab1, tab2, tab3, tab4:
-                st.info("분석을 시작하려면, 좌측 사이드바에서 CSV 파일을 업로드해주세요.")
-        except Exception as e:
-            st.error(f"탭 내용 표시 중 오류 발생: {str(e)}")
+        with tab1, tab2, tab3, tab4:
+            st.info("분석을 시작하려면, 좌측 사이드바에서 CSV 파일을 업로드해주세요.")
         return  # 여기서 함수 종료
         
     # 업로드된 파일 처리

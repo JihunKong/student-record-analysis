@@ -6,6 +6,13 @@ import traceback
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 
+# 기본 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # .env 파일 로드
 load_dotenv()
 
@@ -108,7 +115,7 @@ CSV 데이터:
         }
         
         # OpenAI API 호출
-        logging.info("CSV 분석 API 호출 시작")
+        logger.info("CSV 분석 API 호출 시작")
         
         response = requests.post(
             "https://api.openai.com/v1/chat/completions",
@@ -128,13 +135,13 @@ CSV 데이터:
             error_msg = f"API 호출 실패 (상태 코드: {response.status_code})"
             if hasattr(response, 'text'):
                 error_msg += f": {response.text[:200]}"
-            logging.error(error_msg)
+            logger.error(error_msg)
             return error_msg
     
     except Exception as e:
         error_msg = f"CSV 분석 중 오류 발생: {str(e)}"
-        logging.error(error_msg)
-        logging.error(traceback.format_exc())
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
         return error_msg
 
 def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -190,11 +197,11 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
                 return {"analysis": "응답 내용을 찾을 수 없습니다.", "error": "응답 형식 오류"}
         else:
             error_msg = f"API 호출 실패 (상태 코드: {response.status_code}): {response.text[:200] if hasattr(response, 'text') else ''}"
-            logging.error(error_msg)
+            logger.error(error_msg)
             return {"analysis": "API 호출에 실패했습니다. 잠시 후 다시 시도해주세요.", "error": error_msg}
     
     except Exception as e:
         error_msg = f"학생 기록 분석 중 오류 발생: {str(e)}"
-        logging.error(error_msg)
-        logging.error(traceback.format_exc())
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
         return {"analysis": "분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", "error": str(e)} 
