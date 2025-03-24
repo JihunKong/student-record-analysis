@@ -180,23 +180,24 @@ def process_uploaded_file(uploaded_file):
         # 파일 처리 및 학생 정보 추출
         student_info = process_csv_file(uploaded_file)
         
-        # AI 분석 직접 호출 준비
-        import logging
-        logging.info("CSV 파일 분석 준비 중...")
-        
-        try:
-            # 원본 CSV 내용을 직접 AI에 전달하여 분석
-            from analyzer import analyze_csv_directly
+        # AI 분석은 필요한 경우에만 진행 
+        if "ai_analysis" not in student_info or not student_info["ai_analysis"]:
+            import logging
+            logging.info("CSV 파일 분석 준비 중...")
             
-            # CSV 파일 원본 내용으로 AI 분석 실행
-            analysis_result = analyze_csv_directly(file_content)
-            
-            # 분석 결과 저장
-            student_info["ai_analysis"] = analysis_result
+            try:
+                # 원본 CSV 내용을 직접 AI에 전달하여 분석
+                from analyzer import analyze_csv_directly
                 
-        except Exception as e:
-            logging.error(f"AI 분석 중 오류 발생: {str(e)}")
-            student_info["ai_analysis"] = f"AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요. (오류: {str(e)})"
+                # CSV 파일 원본 내용으로 AI 분석 실행 (한 번만)
+                analysis_result = analyze_csv_directly(file_content)
+                
+                # 분석 결과 저장
+                student_info["ai_analysis"] = analysis_result
+                    
+            except Exception as e:
+                logging.error(f"AI 분석 중 오류 발생: {str(e)}")
+                student_info["ai_analysis"] = f"AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요. (오류: {str(e)})"
         
         return student_info
         
@@ -265,12 +266,22 @@ def main():
     
     # 파일 처리 시작
     try:
-        # 파일이 이미 처리되었는지 확인
-        if 'student_info' not in st.session_state or not st.session_state.student_info:
+        # 파일이 이미 처리되었는지 확인 (파일명 기반 캐싱)
+        current_file_name = uploaded_file.name
+        
+        if ('current_file' not in st.session_state or 
+            st.session_state.current_file != current_file_name or 
+            'student_info' not in st.session_state or 
+            not st.session_state.student_info):
+            
+            # 새 파일이 업로드되었거나 처리된 적이 없는 경우에만 처리
             with st.spinner("파일을 처리 중입니다..."):
                 student_info = process_uploaded_file(uploaded_file)
+                # 세션에 저장
                 st.session_state.student_info = student_info
+                st.session_state.current_file = current_file_name
         else:
+            # 이미 처리된 정보가 있으면 재사용
             student_info = st.session_state.student_info
         
         # 학생 정보가 비어있는 경우
