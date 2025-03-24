@@ -110,6 +110,10 @@ def analyze_with_claude(prompt):
             logging.info("Claude API 호출 시작")
             logging.info(f"프롬프트 길이: {len(prompt)}")
             
+            # UTF-8로 명시적 인코딩 후 디코딩 (인코딩 문제 해결)
+            utf8_prompt = prompt.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
+            logging.info(f"UTF-8 인코딩 후 프롬프트 길이: {len(utf8_prompt)}")
+            
             # 인코딩 오류 방지를 위해 API 호출 수정
             message = client.messages.create(
                 model="claude-3-7-sonnet-20250219",
@@ -121,7 +125,7 @@ def analyze_with_claude(prompt):
                         "content": [
                             {
                                 "type": "text",
-                                "text": prompt
+                                "text": utf8_prompt
                             }
                         ]
                     }
@@ -135,7 +139,9 @@ def analyze_with_claude(prompt):
                 result_text = ""
                 for content_item in message.content:
                     if content_item.type == "text":
-                        result_text += content_item.text
+                        # 응답도 UTF-8로 처리
+                        text = content_item.text
+                        result_text += text.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
                 return result_text
             else:
                 return "API 응답에서 내용을 찾을 수 없습니다."
@@ -252,6 +258,10 @@ def analyze_csv_directly(csv_content):
         # 로그 추가
         logging.info("CSV 파일 직접 분석 중...")
         
+        # UTF-8로 명시적 인코딩 후 디코딩 (인코딩 문제 해결)
+        utf8_prompt = prompt.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
+        logging.info(f"UTF-8 인코딩 후 프롬프트 길이: {len(utf8_prompt)}")
+        
         # 직접 API 호출 (CSV 내용 없이 기본 프롬프트만 사용)
         try:
             message = client.messages.create(
@@ -264,7 +274,7 @@ def analyze_csv_directly(csv_content):
                         "content": [
                             {
                                 "type": "text",
-                                "text": prompt
+                                "text": utf8_prompt
                             }
                         ]
                     }
@@ -276,7 +286,9 @@ def analyze_csv_directly(csv_content):
                 result_text = ""
                 for content_item in message.content:
                     if content_item.type == "text":
-                        result_text += content_item.text
+                        # 응답도 UTF-8로 처리
+                        text = content_item.text
+                        result_text += text.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
                 return result_text
             else:
                 return "API 응답에서 내용을 찾을 수 없습니다."
