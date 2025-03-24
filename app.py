@@ -30,7 +30,7 @@ if not GEMINI_API_KEY:
     st.stop()
 
 client = genai.Client(api_key=GEMINI_API_KEY)
-model = client.get_model('gemini-pro')
+model = client.get_model('gemini-2.0-flash')
 
 # 앱 타이틀
 st.title("📚 생활기록부 분석 및 시각화 자동화 프로그램")
