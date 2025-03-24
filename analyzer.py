@@ -261,34 +261,32 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
         }
         
         # 교과별 성취도 분석
-        academic_performance = student_data.get("academic_performance", {})
-        academic_analysis = {}
-        
-        for subject, content in academic_performance.items():
-            prompt = f"""
-            다음은 {subject} 과목의 성취도 내용입니다. 
-            이 내용을 바탕으로 학생의 성취 수준과 특징을 분석해주세요.
-            
-            내용: {content}
-            """
-            
-            response = model.generate_content(prompt)
-            academic_analysis[subject] = response.text
+        academic_performance = {}
+        for subject in ["국어", "수학", "영어", "한국사", "사회", "과학", "과학탐구실험", "정보", "체육", "음악", "미술"]:
+            if subject in student_data:
+                prompt = f"""
+                다음은 {subject} 과목의 성취도 내용입니다. 
+                이 내용을 바탕으로 학생의 성취 수준과 특징을 분석해주세요.
+                
+                내용: {student_data[subject]}
+                """
+                
+                response = model.generate_content(prompt)
+                academic_performance[subject] = response.text
         
         # 활동 내역 분석
-        activities = student_data.get("activities", {})
-        activity_analysis = {}
-        
-        for activity, content in activities.items():
-            prompt = f"""
-            다음은 {activity} 활동 내용입니다.
-            이 활동을 통해 보여진 학생의 특성과 역량을 분석해주세요.
-            
-            내용: {content}
-            """
-            
-            response = model.generate_content(prompt)
-            activity_analysis[activity] = response.text
+        activities = {}
+        for activity_type in ["자율", "동아리", "진로", "행특", "개인"]:
+            if activity_type in student_data:
+                prompt = f"""
+                다음은 {activity_type} 활동 내용입니다.
+                이 활동을 통해 보여진 학생의 특성과 역량을 분석해주세요.
+                
+                내용: {student_data[activity_type]}
+                """
+                
+                response = model.generate_content(prompt)
+                activities[activity_type] = response.text
         
         # 진로 적합성 분석
         career_prompt = f"""
@@ -296,7 +294,7 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
         이를 바탕으로 진로 적합성을 분석해주세요.
         
         진로 희망: {basic_info["진로희망"]}
-        활동 내역: {json.dumps(activity_analysis, ensure_ascii=False)}
+        활동 내역: {json.dumps(activities, ensure_ascii=False)}
         """
         
         career_response = model.generate_content(career_prompt)
@@ -305,8 +303,8 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
         analysis_results = {
             "학생_프로필": {
                 "기본_정보": basic_info,
-                "교과별_분석": academic_analysis,
-                "활동_분석": activity_analysis
+                "교과별_분석": academic_performance,
+                "활동_분석": activities
             },
             "진로_적합성": career_response.text
         }
@@ -315,9 +313,9 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
         analysis_results["시각화"] = {
             "교과_성취도": create_subject_radar_chart(student_data.get("교과_성취도", {})),
             "활동_타임라인": create_activity_timeline(student_data.get("활동_내역", [])),
-            "진로_분석": create_career_analysis_chart(analysis_results["진로_적합성"]),
-            "학습_스타일": create_learning_style_chart(analysis_results["학생_프로필"]["활동_분석"]),
-            "핵심_역량": create_competency_chart(analysis_results["학생_프로필"]["활동_분석"])
+            "진로_분석": create_career_analysis_chart({"적합_진로_옵션": []}),
+            "학습_스타일": create_learning_style_chart(activities),
+            "핵심_역량": create_competency_chart(activities)
         }
         
         return analysis_results
