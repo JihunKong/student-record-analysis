@@ -57,9 +57,18 @@ def extract_student_info(df):
         
         # 학기별 성적
         grades = []
-        grade_data = df.iloc[1:].copy()  # 성적 데이터는 두 번째 행부터 시작
+        # 성적 데이터가 있는 행 찾기
+        grade_start_idx = df[df['학기'].notna()].index[0]
+        grade_data = df.iloc[grade_start_idx:].copy()
+        
         if not grade_data.empty:
-            grade_data.columns = ['학기', '교과', '과목', '학점수', '원점수/과목평균', '성취도', '석차등급']
+            # 성적 데이터 컬럼명 설정
+            grade_columns = ['학기', '교과', '과목', '학점수', '원점수/과목평균', '성취도', '석차등급']
+            grade_data = grade_data.iloc[:, :len(grade_columns)]
+            grade_data.columns = grade_columns
+            
+            # 빈 행 제거
+            grade_data = grade_data.dropna(subset=['학기', '교과', '과목'])
             grades = grade_data.to_dict('records')
         
         # 추출한 정보를 student_info에 저장
