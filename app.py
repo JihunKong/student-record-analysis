@@ -201,25 +201,87 @@ if uploaded_file:
                 
                 # 과목별 비교 차트
                 subjects = ['국어', '수학', '영어', '한국사', '사회', '과학', '정보']
-                semester1_grades = [student_info['academic_records']['semester1']['grades'][subject]['rank'] for subject in subjects]
-                semester2_grades = [student_info['academic_records']['semester2']['grades'][subject]['rank'] for subject in subjects]
                 
-                fig = go.Figure()
-                fig.add_trace(go.Bar(name='1학기', x=subjects, y=semester1_grades))
-                fig.add_trace(go.Bar(name='2학기', x=subjects, y=semester2_grades))
-                fig.update_layout(
-                    title='과목별 등급 비교',
-                    height=400,
-                    showlegend=True,
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom",
-                        y=1.02,
-                        xanchor="right",
-                        x=1
+                # 안전하게 데이터 접근
+                semester1_grades = []
+                semester2_grades = []
+                
+                for subject in subjects:
+                    # 1학기 데이터
+                    if 'semester1' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester1']:
+                        if subject in student_info['academic_records']['semester1']['grades']:
+                            semester1_grades.append(student_info['academic_records']['semester1']['grades'][subject]['rank'])
+                        else:
+                            semester1_grades.append(0)
+                    else:
+                        semester1_grades.append(0)
+                    
+                    # 2학기 데이터
+                    if 'semester2' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester2']:
+                        if subject in student_info['academic_records']['semester2']['grades']:
+                            semester2_grades.append(student_info['academic_records']['semester2']['grades'][subject]['rank'])
+                        else:
+                            semester2_grades.append(0)
+                    else:
+                        semester2_grades.append(0)
+                
+                # 0인 값은 제외하고 표시할 과목과 데이터 준비
+                valid_subjects = []
+                valid_sem1_grades = []
+                valid_sem2_grades = []
+                
+                for i, subject in enumerate(subjects):
+                    if semester1_grades[i] > 0 or semester2_grades[i] > 0:
+                        valid_subjects.append(subject)
+                        valid_sem1_grades.append(semester1_grades[i])
+                        valid_sem2_grades.append(semester2_grades[i])
+                
+                # 차트 생성
+                if valid_subjects:
+                    fig = go.Figure()
+                    
+                    # 1학기 데이터가 있는 경우만 추가
+                    if any(grade > 0 for grade in valid_sem1_grades):
+                        fig.add_trace(go.Bar(
+                            name='1학기', 
+                            x=valid_subjects, 
+                            y=valid_sem1_grades,
+                            text=[f"{g:.1f}" if g > 0 else "N/A" for g in valid_sem1_grades],
+                            textposition='auto'
+                        ))
+                    
+                    # 2학기 데이터가 있는 경우만 추가
+                    if any(grade > 0 for grade in valid_sem2_grades):
+                        fig.add_trace(go.Bar(
+                            name='2학기', 
+                            x=valid_subjects, 
+                            y=valid_sem2_grades,
+                            text=[f"{g:.1f}" if g > 0 else "N/A" for g in valid_sem2_grades],
+                            textposition='auto'
+                        ))
+                    
+                    fig.update_layout(
+                        title='과목별 등급 비교',
+                        height=400,
+                        showlegend=True,
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="right",
+                            x=1
+                        ),
+                        yaxis=dict(
+                            title='등급',
+                            range=[9.5, 0.5],  # 1등급이 위로 가도록 y축 반전
+                            tickmode='linear',
+                            tick0=1,
+                            dtick=1
+                        )
                     )
-                )
-                st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("과목별 등급 데이터가 충분하지 않습니다.")
                 
                 # 평균 지표 표시
                 col1, col2 = st.columns(2)
