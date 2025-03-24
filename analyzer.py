@@ -108,9 +108,8 @@ def analyze_with_claude(prompt):
         try:
             # API 호출 전에 인코딩 문제를 피하기 위해 프롬프트 처리
             message = client.messages.create(
-                model="claude-3-sonnet-20240229",
-                max_tokens=2000,
-                temperature=0.7,
+                model="claude-3-7-sonnet-20250219",
+                max_tokens=4000,
                 system="당신은 학생 데이터를 분석하는 교육 전문가입니다. 주어진 학생 데이터를 분석하여 학생의 강점, 약점, 진로 적합성 등을 종합적으로 평가해주세요. 항상 한국어로 응답하세요.",
                 messages=[
                     {"role": "user", "content": prompt}
