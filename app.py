@@ -71,7 +71,7 @@ if uploaded_file:
         student_info = extract_student_info(df)
         
         # 탭 생성
-        tab1, tab2 = st.tabs(["원본 데이터", "성적 분석"])
+        tab1, tab2, tab3 = st.tabs(["원본 데이터", "성적 분석", "세특 분석"])
         
         with tab1:
             st.header("📊 원본 데이터")
@@ -80,46 +80,53 @@ if uploaded_file:
         with tab2:
             st.header("📈 성적 분석")
             
-            # 1학기와 2학기 과목 비교
-            semester_subjects = go.Figure()
+            # 과목별 1,2학기 비교 차트
+            all_subjects = set()
+            semester_data = {'1': {}, '2': {}}
             
-            # 1학기 과목 및 등급
-            first_semester = []
-            first_grades = []
             for grade in student_info['grades']:
-                if grade['semester'] == '1' and grade['grade'] != '0':
-                    first_semester.append(grade['subject'])
-                    first_grades.append(float(grade['grade']))
+                if grade['grade'] != '0':
+                    semester = grade['semester']
+                    subject = grade['subject']
+                    all_subjects.add(subject)
+                    semester_data[semester][subject] = {
+                        'grade': float(grade['grade']),
+                        'credit': float(grade['credit'])
+                    }
             
-            # 2학기 과목 및 등급
-            second_semester = []
-            second_grades = []
-            for grade in student_info['grades']:
-                if grade['semester'] == '2' and grade['grade'] != '0':
-                    second_semester.append(grade['subject'])
-                    second_grades.append(float(grade['grade']))
+            # 과목별 비교 차트
+            subject_comparison = go.Figure()
             
-            # 1학기 데이터 추가
-            semester_subjects.add_trace(go.Bar(
+            # 정렬된 과목 리스트
+            sorted_subjects = sorted(list(all_subjects))
+            
+            # 1학기 데이터
+            first_semester_grades = [semester_data['1'].get(subject, {}).get('grade', None) for subject in sorted_subjects]
+            
+            # 2학기 데이터
+            second_semester_grades = [semester_data['2'].get(subject, {}).get('grade', None) for subject in sorted_subjects]
+            
+            # 1학기 막대 그래프
+            subject_comparison.add_trace(go.Bar(
                 name='1학기',
-                x=first_semester,
-                y=first_grades,
-                text=first_grades,
+                x=sorted_subjects,
+                y=first_semester_grades,
+                text=first_semester_grades,
                 textposition='auto',
             ))
             
-            # 2학기 데이터 추가
-            semester_subjects.add_trace(go.Bar(
+            # 2학기 막대 그래프
+            subject_comparison.add_trace(go.Bar(
                 name='2학기',
-                x=second_semester,
-                y=second_grades,
-                text=second_grades,
+                x=sorted_subjects,
+                y=second_semester_grades,
+                text=second_semester_grades,
                 textposition='auto',
             ))
             
             # 레이아웃 업데이트
-            semester_subjects.update_layout(
-                title='학기별 과목 등급 비교',
+            subject_comparison.update_layout(
+                title='과목별 1,2학기 등급 비교',
                 xaxis_title='과목',
                 yaxis_title='등급',
                 yaxis=dict(
@@ -131,17 +138,20 @@ if uploaded_file:
                 barmode='group'
             )
             
-            st.plotly_chart(semester_subjects)
+            st.plotly_chart(subject_comparison)
             
             # 평균 비교 차트
             averages = go.Figure()
             
             # 평균 데이터
-            avg_labels = ['1학기 평균', '2학기 평균', '전체 평균']
+            avg_labels = ['1학기 단순평균', '1학기 가중평균', '2학기 단순평균', '2학기 가중평균', '전체 단순평균', '전체 가중평균']
             avg_values = [
                 student_info['first_semester_average'],
+                student_info['first_semester_weighted_average'],
                 student_info['second_semester_average'],
-                student_info['total_average']
+                student_info['second_semester_weighted_average'],
+                student_info['total_average'],
+                student_info['total_weighted_average']
             ]
             
             averages.add_trace(go.Bar(
@@ -152,7 +162,7 @@ if uploaded_file:
             ))
             
             averages.update_layout(
-                title='평균 등급 비교',
+                title='평균 등급 비교 (단순평균 vs 가중평균)',
                 xaxis_title='구분',
                 yaxis_title='등급',
                 yaxis=dict(
@@ -170,86 +180,84 @@ if uploaded_file:
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                st.metric(label="1학기 평균", value=f"{student_info['first_semester_average']:.2f}")
+                st.metric(label="1학기 단순평균", value=f"{student_info['first_semester_average']:.2f}")
+                st.metric(label="1학기 가중평균", value=f"{student_info['first_semester_weighted_average']:.2f}")
             
             with col2:
-                st.metric(label="2학기 평균", value=f"{student_info['second_semester_average']:.2f}")
+                st.metric(label="2학기 단순평균", value=f"{student_info['second_semester_average']:.2f}")
+                st.metric(label="2학기 가중평균", value=f"{student_info['second_semester_weighted_average']:.2f}")
             
             with col3:
-                st.metric(label="전체 평균", value=f"{student_info['total_average']:.2f}")
+                st.metric(label="전체 단순평균", value=f"{student_info['total_average']:.2f}")
+                st.metric(label="전체 가중평균", value=f"{student_info['total_weighted_average']:.2f}")
+        
+        with tab3:
+            st.header("📝 세부능력 및 특기사항 분석")
             
-            # 하드코딩된 분석 결과 예시
-            st.subheader("🤖 AI 분석 결과")
+            # 세특 데이터 표시
+            if student_info['academic_performance']:
+                st.subheader("🎓 교과별 세부능력 및 특기사항")
+                for subject, content in student_info['academic_performance'].items():
+                    with st.expander(f"{subject} 세특", expanded=False):
+                        st.write(content)
             
-            with st.expander("학생 프로필", expanded=True):
-                st.write("""
-                **기본 정보**: 이 학생은 전반적으로 안정적인 학업 성취도를 보이고 있습니다.
-                
-                **강점**:
-                - 수학과 과학 과목에서 우수한 성적을 보임
-                - 꾸준한 성적 향상 추세를 보임
-                - 자기주도적 학습 능력이 돋보임
-                
-                **약점**:
-                - 언어 영역에서 상대적으로 낮은 성취도
-                - 과목간 성적 편차가 다소 큼
-                
-                **학업 패턴**: 이과 과목에서 강점을 보이며, 꾸준한 성장세를 유지하고 있습니다.
-                """)
+            # 활동 내역 표시
+            if student_info['activities']:
+                st.subheader("🎯 창의적 체험활동")
+                for activity_type, content in student_info['activities'].items():
+                    with st.expander(f"{activity_type} 활동", expanded=False):
+                        st.write(content)
             
-            with st.expander("진로 적합성", expanded=True):
-                st.write("""
-                **분석 결과**: 이과 계열 적성이 뚜렷하며, 특히 공학 계열에 적합한 성향을 보입니다.
-                
-                **추천 진로**:
-                1. 컴퓨터공학
-                2. 전자공학
-                3. 기계공학
-                
-                **진로 로드맵**: 수학, 과학 과목의 심화학습을 통해 공학 계열 진학을 준비하는 것이 좋겠습니다.
-                """)
+            # 진로 희망 표시
+            if student_info['career_aspiration']:
+                st.subheader("🎯 진로 희망")
+                st.write(student_info['career_aspiration'])
             
-            with st.expander("학업 발전 전략", expanded=True):
-                st.write("""
-                **분석 결과**: 현재의 강점을 살리면서 약점을 보완하는 전략이 필요합니다.
-                
-                **개선 전략**:
-                1. 언어 영역 학습 시간 확대
-                2. 과목간 균형있는 학습 계획 수립
-                3. 자기주도학습 습관 강화
-                """)
+            # AI 분석 실행
+            st.subheader("🤖 AI 분석")
             
-            with st.expander("학부모 상담 가이드", expanded=True):
-                st.write("""
-                **분석 결과**: 학생의 강점을 살리는 방향으로 진로를 설정하되, 균형잡힌 발전이 필요합니다.
-                
-                **상담 포인트**:
-                1. 이과 계열 적성 강화 방안
-                2. 언어 영역 보완 전략
-                
-                **지원 방안**:
-                1. 과학/수학 심화 프로그램 참여 지원
-                2. 독서 활동 장려
-                """)
-            
-            with st.expander("진로 로드맵", expanded=True):
-                st.write("""
-                **단기 목표**:
-                1. 수학, 과학 성적 현 수준 유지
-                2. 언어 영역 성적 향상
-                
-                **중기 목표**:
-                1. 이과 계열 진학 준비
-                2. 관련 분야 활동 참여
-                
-                **장기 목표**:
-                1. 공학 계열 대학 진학
-                2. 관련 자격증 취득
-                """)
+            if st.button("AI 분석 실행"):
+                with st.spinner("AI가 세특을 분석중입니다..."):
+                    try:
+                        # 세특 데이터를 문자열로 변환
+                        setech_data = ""
+                        for subject, content in student_info['academic_performance'].items():
+                            setech_data += f"{subject}: {content}\n\n"
+                        
+                        for activity_type, content in student_info['activities'].items():
+                            setech_data += f"{activity_type} 활동: {content}\n\n"
+                        
+                        if student_info['career_aspiration']:
+                            setech_data += f"진로 희망: {student_info['career_aspiration']}\n\n"
+                        
+                        # AI 분석 실행
+                        analysis_result = analyze_with_gemini(setech_data)
+                        
+                        # 분석 결과 표시
+                        if isinstance(analysis_result, dict):
+                            if '학생_프로필' in analysis_result:
+                                with st.expander("학생 프로필", expanded=True):
+                                    st.write(analysis_result['학생_프로필'])
+                            
+                            if '강점_분석' in analysis_result:
+                                with st.expander("강점 분석", expanded=True):
+                                    st.write(analysis_result['강점_분석'])
+                            
+                            if '진로_적합성' in analysis_result:
+                                with st.expander("진로 적합성", expanded=True):
+                                    st.write(analysis_result['진로_적합성'])
+                            
+                            if '개선_방향' in analysis_result:
+                                with st.expander("개선 방향", expanded=True):
+                                    st.write(analysis_result['개선_방향'])
+                        else:
+                            st.error("AI 분석 결과가 올바른 형식이 아닙니다.")
+                    
+                    except Exception as e:
+                        st.error(f"AI 분석 중 오류가 발생했습니다: {str(e)}")
             
     except Exception as e:
         st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
-        st.info("다른 인코딩을 선택하여 다시 시도해보세요.")
 
 # 앱 실행
 if __name__ == "__main__":

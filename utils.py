@@ -124,26 +124,54 @@ def extract_student_info(df):
         if len(grade_section) > 0:
             grade_data = df.iloc[grade_section[0]:]
             
+            # 과목별 학점수 저장
+            subject_credits = {}
+            
             for _, row in grade_data.iterrows():
                 if pd.notna(row.iloc[0]):  # 학기 정보가 있는 행만 처리
-                    grade_entry = {
-                        'semester': str(row.iloc[0]),  # 학기
-                        'subject': str(row.iloc[2]),   # 과목
-                        'grade': str(row.iloc[6]) if pd.notna(row.iloc[6]) else "0"  # 석차등급
-                    }
-                    grades.append(grade_entry)
+                    semester = str(row.iloc[0])
+                    subject = str(row.iloc[2])
+                    grade = str(row.iloc[6]) if pd.notna(row.iloc[6]) else "0"
+                    credit = float(row.iloc[3]) if pd.notna(row.iloc[3]) else 1.0
+                    
+                    if grade != "0":
+                        subject_credits[subject] = credit
+                        grades.append({
+                            'semester': semester,
+                            'subject': subject,
+                            'grade': grade,
+                            'credit': credit
+                        })
         
-        # 평균 계산 (등급만)
+        # 평균 계산
         first_semester = [float(g['grade']) for g in grades if g['semester'] == '1' and g['grade'] != '0']
         second_semester = [float(g['grade']) for g in grades if g['semester'] == '2' and g['grade'] != '0']
+        
+        # 단순 평균 계산
+        first_semester_avg = sum(first_semester) / len(first_semester) if first_semester else 0
+        second_semester_avg = sum(second_semester) / len(second_semester) if second_semester else 0
+        total_avg = (first_semester_avg + second_semester_avg) / 2 if first_semester and second_semester else 0
+        
+        # 가중 평균 계산
+        first_semester_weighted = [(float(g['grade']) * g['credit']) for g in grades if g['semester'] == '1' and g['grade'] != '0']
+        first_semester_credits = [g['credit'] for g in grades if g['semester'] == '1' and g['grade'] != '0']
+        second_semester_weighted = [(float(g['grade']) * g['credit']) for g in grades if g['semester'] == '2' and g['grade'] != '0']
+        second_semester_credits = [g['credit'] for g in grades if g['semester'] == '2' and g['grade'] != '0']
+        
+        first_semester_weighted_avg = sum(first_semester_weighted) / sum(first_semester_credits) if first_semester_credits else 0
+        second_semester_weighted_avg = sum(second_semester_weighted) / sum(second_semester_credits) if second_semester_credits else 0
+        total_weighted_avg = (first_semester_weighted_avg + second_semester_weighted_avg) / 2 if first_semester_credits and second_semester_credits else 0
         
         student_info['academic_performance'] = academic_performance
         student_info['activities'] = activities
         student_info['career_aspiration'] = career_aspiration
         student_info['grades'] = grades
-        student_info['first_semester_average'] = sum(first_semester) / len(first_semester) if first_semester else 0
-        student_info['second_semester_average'] = sum(second_semester) / len(second_semester) if second_semester else 0
-        student_info['total_average'] = (student_info['first_semester_average'] + student_info['second_semester_average']) / 2 if first_semester and second_semester else 0
+        student_info['first_semester_average'] = first_semester_avg
+        student_info['second_semester_average'] = second_semester_avg
+        student_info['total_average'] = total_avg
+        student_info['first_semester_weighted_average'] = first_semester_weighted_avg
+        student_info['second_semester_weighted_average'] = second_semester_weighted_avg
+        student_info['total_weighted_average'] = total_weighted_avg
         
         return student_info
         
@@ -378,7 +406,7 @@ def process_csv_file(file):
                 
                 # 성적 데이터 컬럼 설정
                 grade_columns = ['학 기', '교 과', '과 목', '학점수', '원점수/과목평균\n (표준편차)', '성취도\n (수강자수)', '석차등급']
-                grade_data.columns = grade_data.columns[:len(grade_columns)]
+                grade_data.columns = grade_columns[:len(grade_data.columns)]
                 grade_data = grade_data.iloc[1:]  # 헤더 행 제외
                 
                 # 두 데이터프레임 합치기
