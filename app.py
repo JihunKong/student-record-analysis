@@ -103,6 +103,8 @@ def create_analysis_prompt(student_info: dict) -> str:
 분석은 객관적 데이터를 기반으로 하되, 긍정적이고 발전적인 관점에서 작성해주세요.
 학생의 강점을 최대한 살리고 약점을 보완할 수 있는 방안을 제시하세요.
 권장하는 활동과 고려할 전략은 구체적이고 실행 가능한 것으로 제안해주세요.
+
+중요: 학생의 '진로희망'을 가장 중요한 요소로 고려하여 분석해주세요. 모든 분석과 제언은 학생의 진로희망을 중심으로 연결하고, 진로 실현을 위한 구체적인 방향성을 제시해주세요. 만약 진로희망이 '미정'인 경우, 학생의 강점과 관심사를 바탕으로 적합한 진로 방향을 제안해주세요.
 """
     return prompt
 
@@ -264,8 +266,9 @@ def main():
         if uploaded_file is not None:
             st.success("파일이 성공적으로 업로드되었습니다!")
         
-        # API 키 입력 섹션 제거 (환경 변수에 이미 설정됨)
-        # 해당 부분 주석 처리 또는 삭제
+        # 저작권 정보 추가
+        st.markdown("---")
+        st.markdown("© 2025 학생부 분석기 Made by 공지훈")
 
     # "파일을 처리 중입니다" 메시지 문제 해결
     # 처리 중 메시지가 계속 표시되는 부분 수정
@@ -654,10 +657,6 @@ def main():
             st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
             import traceback
             st.text(traceback.format_exc())
-
-    # 사이드바에 copyright 정보 추가
-    st.markdown("---")
-    st.markdown("© 2025 학생부 분석기 Made by 공지훈")
 
 # 앱 실행
 if __name__ == "__main__":
