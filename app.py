@@ -15,78 +15,103 @@ load_dotenv()
 def analyze_student_record(student_info: dict) -> dict:
     """학생 생활기록부를 분석하여 종합적인 결과를 반환합니다."""
     try:
-        # 1학기 성적 분석
-        semester1 = student_info['academic_records']['semester1']
-        semester1_avg = semester1['average']['total']
-        semester1_main_avg = semester1['average']['main_subjects']
+        # Claude API로 분석 요청을 위한 프롬프트 생성
+        from analyzer import analyze_with_claude
         
-        # 2학기 성적 분석
-        semester2 = student_info['academic_records']['semester2']
-        semester2_avg = semester2['average']['total']
-        semester2_main_avg = semester2['average']['main_subjects']
+        # 프롬프트 생성
+        prompt = create_analysis_prompt(student_info)
         
-        # 전체 성적 분석
-        total = student_info['academic_records']['total']
-        total_avg = total['average']['total']
-        total_main_avg = total['average']['main_subjects']
-        
-        # 성적 향상도 분석
-        grade_improvement = semester2_avg - semester1_avg
-        main_subjects_improvement = semester2_main_avg - semester1_main_avg
-        
-        # 교과별 세부특기사항 분석
-        subject_strengths = []
-        for subject, content in student_info['special_notes']['subjects'].items():
-            if "우수" in content or "탁월" in content or "뛰어난" in content:
-                subject_strengths.append(subject)
-        
-        # 활동 분석
-        activity_summary = []
-        for activity_type, content in student_info['special_notes']['activities'].items():
-            if content.strip():
-                activity_summary.append(f"- {activity_type}: {content[:100]}...")
-        
-        # 진로 희망
-        career = student_info.get('career_aspiration', '미정')
-        
-        # 분석 결과 생성
-        analysis = f"""
-### 1. 학업 역량 분석
-
-#### 전반적인 학업 수준과 발전 추이
-- 전체 평균: {total_avg:.2f}
-- 1학기 평균: {semester1_avg:.2f} → 2학기 평균: {semester2_avg:.2f}
-- 성적 향상도: {grade_improvement:+.2f}점
-
-#### 주요 과목 분석
-- 주요 과목 전체 평균: {total_main_avg:.2f}
-- 1학기 주요과목 평균: {semester1_main_avg:.2f} → 2학기 주요과목 평균: {semester2_main_avg:.2f}
-- 주요 과목 향상도: {main_subjects_improvement:+.2f}점
-
-#### 학업 강점 과목
-{', '.join(subject_strengths) if subject_strengths else '분석 중...'}
-
-### 2. 비교과 활동 분석
-
-#### 주요 활동 내역
-{''.join(f"\\n{activity}" for activity in activity_summary) if activity_summary else '활동 내역이 충분하지 않습니다.'}
-
-### 3. 진로 분석
-
-#### 진로 희망
-{career}
-
-### 4. 종합 제언
-1. {'성적이 전반적으로 향상되는 추세를 보입니다.' if grade_improvement > 0 else '성적 향상을 위한 노력이 필요합니다.'}
-2. {'주요 과목에서 긍정적인 발전을 보이고 있습니다.' if main_subjects_improvement > 0 else '주요 과목 보완이 필요합니다.'}
-3. {'다양한 비교과 활동에 적극적으로 참여하고 있습니다.' if len(activity_summary) >= 3 else '비교과 활동 참여를 늘리는 것이 좋겠습니다.'}
-"""
-        
-        return {"analysis": analysis}
+        # Claude API를 통한 분석 요청
+        try:
+            analysis_result = analyze_with_claude(student_info)
+            return {"analysis": analysis_result}
+        except Exception as e:
+            print(f"Claude API 호출 중 오류: {str(e)}")
+            # 오류 발생 시 프롬프트만 반환
+            return {"analysis": prompt}
         
     except Exception as e:
         print(f"분석 중 오류 발생: {str(e)}")
         return {"error": str(e)}
+
+def create_analysis_prompt(student_info: dict) -> str:
+    """학생 정보를 바탕으로 Claude에게 보낼 분석 프롬프트를 생성합니다."""
+    
+    # 성적 데이터 요약
+    grades_summary = []
+    for semester in ['semester1', 'semester2']:
+        if semester in student_info['academic_records']:
+            semester_data = student_info['academic_records'][semester]
+            grades = semester_data.get('grades', {})
+            averages = semester_data.get('average', {})
+            
+            semester_summary = f"{semester.replace('semester', '')}학기:\n"
+            semester_summary += f"- 전체 평균 등급: {averages.get('total', 0):.1f}\n"
+            semester_summary += f"- 주요과목 평균 등급: {averages.get('main_subjects', 0):.1f}\n"
+            semester_summary += "- 과목별 등급:\n"
+            
+            for subject, grade in grades.items():
+                if 'rank' in grade:
+                    semester_summary += f"  * {subject}: {grade['rank']}등급\n"
+            
+            grades_summary.append(semester_summary)
+    
+    # 세특 데이터 요약
+    special_notes = []
+    for subject, content in student_info['special_notes']['subjects'].items():
+        if content and len(content) > 10:  # 의미 있는 내용만 포함
+            special_notes.append(f"[{subject}]\n{content}\n")
+    
+    # 활동 데이터 요약
+    activities = []
+    for activity_type, content in student_info['special_notes']['activities'].items():
+        if content and len(content) > 10:  # 의미 있는 내용만 포함
+            activities.append(f"[{activity_type}]\n{content}\n")
+    
+    # 진로 희망
+    career = student_info.get('career_aspiration', '미정')
+    
+    prompt = f"""
+다음은 한 학생의 학업 데이터입니다. 이를 바탕으로 학생의 특성과 발전 가능성을 분석해주세요.
+
+1. 성적 데이터
+{'\n'.join(grades_summary)}
+
+2. 세부능력 및 특기사항
+{'\n'.join(special_notes)}
+
+3. 창의적 체험활동
+{'\n'.join(activities)}
+
+4. 진로 희망: {career}
+
+위 데이터를 바탕으로 다음 항목들을 분석해주세요:
+
+1. 학업 역량 분석
+- 전반적인 학업 수준과 발전 추이
+- 과목별 특징과 강점
+- 학습 태도와 참여도
+
+2. 학생 특성 분석
+- 성격 및 행동 특성
+- 두드러진 역량과 관심사
+- 대인관계 및 리더십
+
+3. 진로 적합성 분석
+- 희망 진로와 현재 역량의 연관성
+- 진로 실현을 위한 준비 상태
+- 발전 가능성과 보완이 필요한 부분
+
+4. 종합 제언
+- 학생의 주요 강점과 특징
+- 향후 발전을 위한 구체적 조언
+- 진로 실현을 위한 활동 추천
+
+분석은 객관적 데이터를 기반으로 하되, 긍정적이고 발전적인 관점에서 작성해주세요.
+학생의 강점을 최대한 살리고 약점을 보완할 수 있는 방안을 제시하세요.
+권장하는 활동과 고려할 전략은 구체적이고 실행 가능한 것으로 제안해주세요.
+"""
+    return prompt
 
 def display_grade_data(student_data):
     """성적 데이터 표시"""
@@ -277,7 +302,7 @@ def main():
                     st.markdown('<h2 class="section-header">📈 성적 분석</h2>', unsafe_allow_html=True)
                     
                     # 과목별 비교 차트 - 학점수와 등급만 사용
-                    subjects = ['국어', '수학', '영어', '한국사', '사회', '과학', '정보']
+                    subjects = ['국어', '수학', '영어', '사회', '과학']
                     
                     # 안전하게 데이터 접근
                     semester1_grades = []
@@ -315,17 +340,21 @@ def main():
                             valid_sem1_grades.append(semester1_grades[i])
                             valid_sem2_grades.append(semester2_grades[i])
                     
-                    # 차트 생성
+                    # 차트 생성 - 등급을 그래프 높이로 변환 (1등급=9칸, 9등급=1칸)
                     if valid_subjects:
                         fig = go.Figure()
+                        
+                        # 등급을 높이로 변환 (1등급=9, 9등급=1)
+                        sem1_heights = [10 - g if g > 0 else 0 for g in valid_sem1_grades]
+                        sem2_heights = [10 - g if g > 0 else 0 for g in valid_sem2_grades]
                         
                         # 1학기 데이터가 있는 경우만 추가
                         if any(grade > 0 for grade in valid_sem1_grades):
                             fig.add_trace(go.Bar(
                                 name='1학기', 
                                 x=valid_subjects, 
-                                y=valid_sem1_grades,
-                                text=[f"{g:.1f}" if g > 0 else "N/A" for g in valid_sem1_grades],
+                                y=sem1_heights,
+                                text=[f"{g}등급" if g > 0 else "N/A" for g in valid_sem1_grades],
                                 textposition='auto'
                             ))
                         
@@ -334,22 +363,21 @@ def main():
                             fig.add_trace(go.Bar(
                                 name='2학기', 
                                 x=valid_subjects, 
-                                y=valid_sem2_grades,
-                                text=[f"{g:.1f}" if g > 0 else "N/A" for g in valid_sem2_grades],
+                                y=sem2_heights,
+                                text=[f"{g}등급" if g > 0 else "N/A" for g in valid_sem2_grades],
                                 textposition='auto'
                             ))
                         
-                        # 레이아웃 설정 - 등급은 낮을수록 좋으므로 Y축 반전
+                        # 레이아웃 설정 - 등급을 높이로 표현 (높을수록 좋은 등급)
                         fig.update_layout(
-                            title="과목별 등급 비교",
+                            title="과목별 등급 비교 (막대가 높을수록 좋은 등급)",
                             barmode='group',
                             yaxis=dict(
-                                title="등급",
-                                autorange="reversed",  # 등급 축 반전 (1등급이 위쪽)
-                                tickmode='linear',
-                                tick0=1,
-                                dtick=1,
-                                range=[9.5, 0.5]  # 9등급부터 1등급까지 표시
+                                title="성취도",
+                                tickmode='array',
+                                tickvals=[1, 2, 3, 4, 5, 6, 7, 8, 9],
+                                ticktext=['9등급', '8등급', '7등급', '6등급', '5등급', '4등급', '3등급', '2등급', '1등급'],
+                                range=[0, 9.5]  # 0부터 9.5까지 표시
                             ),
                             legend=dict(
                                 orientation="h",
