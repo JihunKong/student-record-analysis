@@ -122,26 +122,36 @@ def extract_student_info(df):
         grades = []
         grade_section = df[df.iloc[:, 0] == '학 기'].index
         if len(grade_section) > 0:
-            grade_data = df.iloc[grade_section[0]:]
+            grade_start = grade_section[0]
+            grade_data = df.iloc[grade_start+1:]  # 헤더 행 제외
             
             # 과목별 학점수 저장
             subject_credits = {}
             
             for _, row in grade_data.iterrows():
-                if pd.notna(row.iloc[0]):  # 학기 정보가 있는 행만 처리
-                    semester = str(row.iloc[0])
-                    subject = str(row.iloc[2])
-                    grade = str(row.iloc[6]) if pd.notna(row.iloc[6]) else "0"
-                    credit = float(row.iloc[3]) if pd.notna(row.iloc[3]) else 1.0
-                    
-                    if grade != "0":
-                        subject_credits[subject] = credit
-                        grades.append({
-                            'semester': semester,
-                            'subject': subject,
-                            'grade': grade,
-                            'credit': credit
-                        })
+                try:
+                    if pd.notna(row.iloc[0]) and row.iloc[0] != '학 기':  # 학기 정보가 있고 헤더가 아닌 행만 처리
+                        semester = str(row.iloc[0])
+                        subject = str(row.iloc[2])
+                        grade = str(row.iloc[6]) if pd.notna(row.iloc[6]) else "0"
+                        
+                        # 학점수가 숫자인 경우에만 처리
+                        try:
+                            credit = float(row.iloc[3]) if pd.notna(row.iloc[3]) else 1.0
+                        except (ValueError, TypeError):
+                            credit = 1.0  # 학점수가 숫자가 아닌 경우 기본값 1.0 사용
+                        
+                        if grade != "0" and grade.replace('.', '').isdigit():  # 유효한 등급인 경우만 처리
+                            subject_credits[subject] = credit
+                            grades.append({
+                                'semester': semester,
+                                'subject': subject,
+                                'grade': grade,
+                                'credit': credit
+                            })
+                except Exception as e:
+                    print(f"행 처리 중 오류 발생: {str(e)}, 행 데이터: {row}")
+                    continue
         
         # 평균 계산
         first_semester = [float(g['grade']) for g in grades if g['semester'] == '1' and g['grade'] != '0']
