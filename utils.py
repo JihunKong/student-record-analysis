@@ -13,10 +13,13 @@ def preprocess_csv(uploaded_file) -> pd.DataFrame:
     """CSV 파일을 전처리합니다."""
     try:
         # UTF-8로 먼저 시도
-        df = pd.read_csv(uploaded_file, encoding='utf-8')
+        df = pd.read_csv(uploaded_file, encoding='utf-8', skiprows=1)
     except UnicodeDecodeError:
         # UTF-8 실패시 CP949로 시도
-        df = pd.read_csv(uploaded_file, encoding='cp949')
+        df = pd.read_csv(uploaded_file, encoding='cp949', skiprows=1)
+    
+    # 빈 행 제거
+    df = df.dropna(how='all')
     
     # 컬럼명에서 공백 제거
     df.columns = df.columns.str.strip()
