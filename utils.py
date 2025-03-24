@@ -154,11 +154,35 @@ def extract_student_info(df_tuple):
         print(f"학생 정보 추출 중 오류 발생: {str(e)}")  # 디버깅을 위한 출력 추가
         raise Exception(f"학생 정보 추출 중 오류 발생: {str(e)}")
 
-def create_downloadable_report(content: Dict[str, Any], filename: str = "분석_보고서.md") -> str:
+def create_downloadable_report(content: Dict[str, Any], original_data: str, filename: str = "분석_보고서.md") -> str:
     """다운로드 가능한 보고서를 생성합니다."""
     report = f"""# 학생 생활기록부 분석 보고서
 
-## 1. 학생 프로필
+<details>
+<summary>원본 데이터 보기</summary>
+
+```csv
+{original_data}
+```
+
+</details>
+
+## 1. 성적 분석
+### 학기별 과목 등급 비교
+{content['성적_분석'].get('1학기', {}).get('과목별_등급', {})}
+{content['성적_분석'].get('2학기', {}).get('과목별_등급', {})}
+
+### 평균 등급 분석
+- 1학기 가중평균: {content['성적_분석'].get('1학기', {}).get('가중_평균', '-')}
+- 1학기 단순평균: {content['성적_분석'].get('1학기', {}).get('단순_평균', '-')}
+- 2학기 가중평균: {content['성적_분석'].get('2학기', {}).get('가중_평균', '-')}
+- 2학기 단순평균: {content['성적_분석'].get('2학기', {}).get('단순_평균', '-')}
+
+### 전체 평균
+- 주요과목(국영수사과) 평균: {content['성적_분석'].get('전체', {}).get('주요과목_평균', '-')}
+- 전체과목 평균: {content['성적_분석'].get('전체', {}).get('전체과목_평균', '-')}
+
+## 2. 학생 프로필
 {content['학생_프로필']['기본_정보']}
 
 ### 강점
@@ -167,7 +191,7 @@ def create_downloadable_report(content: Dict[str, Any], filename: str = "분석_
 ### 학업 패턴
 {content['학생_프로필']['학업_패턴']}
 
-## 2. 진로 적합성 분석
+## 3. 진로 적합성 분석
 {content['진로_적합성']['분석_결과']}
 
 ### 추천 진로
@@ -176,13 +200,13 @@ def create_downloadable_report(content: Dict[str, Any], filename: str = "분석_
 ### 진로 로드맵
 {content['진로_적합성']['진로_로드맵']}
 
-## 3. 학업 발전 전략
+## 4. 학업 발전 전략
 {content['학업_발전_전략']['분석_결과']}
 
 ### 개선 전략
 {chr(10).join(f"- {strategy}" for strategy in content['학업_발전_전략']['개선_전략'])}
 
-## 4. 학부모 상담 가이드
+## 5. 학부모 상담 가이드
 {content['학부모_상담_가이드']['분석_결과']}
 
 ### 상담 포인트
@@ -191,7 +215,7 @@ def create_downloadable_report(content: Dict[str, Any], filename: str = "분석_
 ### 지원 방안
 {chr(10).join(f"- {support}" for support in content['학부모_상담_가이드']['지원_방안'])}
 
-## 5. 진로 로드맵
+## 6. 진로 로드맵
 ### 단기 목표
 {chr(10).join(f"- {goal}" for goal in content['진로_로드맵']['단기_목표'])}
 
@@ -330,24 +354,31 @@ def process_csv_file(file):
         # 파일 내용을 문자열로 읽기
         content = file.read().decode('utf-8')
         
+        # 원본 데이터 보존
+        original_data = content
+        
         # 파일 내용을 Gemini에게 전달하기 위한 형식으로 정리
         formatted_content = (
             "아래는 학생 생활기록부 데이터입니다. 이 데이터를 분석해주세요:\n\n"
             f"{content}\n"
         )
         
-        return formatted_content
+        return formatted_content, original_data
         
     except UnicodeDecodeError:
         try:
             # UTF-8로 읽기 실패시 CP949로 시도
             file.seek(0)  # 파일 포인터를 처음으로 되돌림
             content = file.read().decode('cp949')
+            
+            # 원본 데이터 보존
+            original_data = content
+            
             formatted_content = (
                 "아래는 학생 생활기록부 데이터입니다. 이 데이터를 분석해주세요:\n\n"
                 f"{content}\n"
             )
-            return formatted_content
+            return formatted_content, original_data
         except Exception as e:
             raise Exception(f"파일 인코딩 처리 중 오류 발생: {str(e)}")
     except Exception as e:
@@ -444,3 +475,223 @@ def create_analysis_prompt(csv_content: str) -> str:
 8. 모든 값은 문자열 형태로 반환해주세요.
 """
     return prompt 
+
+def analyze_grades(grade_data: pd.DataFrame) -> Dict[str, Any]:
+    """성적 데이터를 분석하여 다양한 통계를 생성합니다."""
+    # 분석할 주요 과목 리스트
+    main_subjects = ['국어', '영어', '수학', '사회', '과학']
+    all_subjects = main_subjects + ['한국사', '정보']
+    
+    # 학기별 데이터 분리
+    semester1_data = grade_data[grade_data['학 기'] == 1]
+    semester2_data = grade_data[grade_data['학 기'] == 2]
+    
+    # 결과 저장을 위한 딕셔너리
+    analysis_result = {
+        '1학기': {'과목별_등급': {}, '가중_평균': 0, '단순_평균': 0},
+        '2학기': {'과목별_등급': {}, '가중_평균': 0, '단순_평균': 0},
+        '전체': {'주요과목_평균': 0, '전체과목_평균': 0}
+    }
+    
+    # 학기별 분석
+    for semester, data in [('1학기', semester1_data), ('2학기', semester2_data)]:
+        total_credits = 0
+        weighted_sum = 0
+        grades_sum = 0
+        subject_count = 0
+        
+        for _, row in data.iterrows():
+            subject = row['과 목']
+            if pd.notna(row['석차등급']) and subject in all_subjects:
+                grade = float(row['석차등급'])
+                credits = float(row['학점수']) if pd.notna(row['학점수']) else 1
+                
+                analysis_result[semester]['과목별_등급'][subject] = {
+                    '등급': grade,
+                    '학점수': credits
+                }
+                
+                weighted_sum += grade * credits
+                total_credits += credits
+                grades_sum += grade
+                subject_count += 1
+        
+        if total_credits > 0:
+            analysis_result[semester]['가중_평균'] = round(weighted_sum / total_credits, 2)
+        if subject_count > 0:
+            analysis_result[semester]['단순_평균'] = round(grades_sum / subject_count, 2)
+    
+    # 전체 평균 계산
+    main_subject_grades = []
+    all_subject_grades = []
+    
+    for semester in ['1학기', '2학기']:
+        for subject, data in analysis_result[semester]['과목별_등급'].items():
+            if subject in main_subjects:
+                main_subject_grades.append(data['등급'])
+            if subject in all_subjects:
+                all_subject_grades.append(data['등급'])
+    
+    if main_subject_grades:
+        analysis_result['전체']['주요과목_평균'] = round(sum(main_subject_grades) / len(main_subject_grades), 2)
+    if all_subject_grades:
+        analysis_result['전체']['전체과목_평균'] = round(sum(all_subject_grades) / len(all_subject_grades), 2)
+    
+    return analysis_result
+
+def create_grade_comparison_chart(grade_analysis: Dict[str, Any]) -> go.Figure:
+    """학기별 과목 등급을 비교하는 차트를 생성합니다."""
+    fig = go.Figure()
+    
+    # 1학기 데이터
+    subjects_1 = list(grade_analysis['1학기']['과목별_등급'].keys())
+    grades_1 = [grade_analysis['1학기']['과목별_등급'][subject]['등급'] for subject in subjects_1]
+    
+    # 2학기 데이터
+    subjects_2 = list(grade_analysis['2학기']['과목별_등급'].keys())
+    grades_2 = [grade_analysis['2학기']['과목별_등급'][subject]['등급'] for subject in subjects_2]
+    
+    # 1학기 막대 그래프
+    fig.add_trace(go.Bar(
+        name='1학기',
+        x=subjects_1,
+        y=grades_1,
+        text=grades_1,
+        textposition='auto',
+    ))
+    
+    # 2학기 막대 그래프
+    fig.add_trace(go.Bar(
+        name='2학기',
+        x=subjects_2,
+        y=grades_2,
+        text=grades_2,
+        textposition='auto',
+    ))
+    
+    # 레이아웃 설정
+    fig.update_layout(
+        title='학기별 과목 등급 비교',
+        xaxis_title='과목',
+        yaxis_title='등급',
+        yaxis=dict(
+            range=[9.5, 0.5],  # 1등급이 위로 가도록 y축 반전
+            tickmode='linear',
+            tick0=1,
+            dtick=1
+        ),
+        barmode='group',
+        showlegend=True
+    )
+    
+    return fig
+
+def create_average_comparison_chart(grade_analysis: Dict[str, Any]) -> go.Figure:
+    """평균 등급을 비교하는 차트를 생성합니다."""
+    fig = go.Figure()
+    
+    categories = ['1학기 가중평균', '1학기 단순평균', '2학기 가중평균', '2학기 단순평균', '주요과목 평균', '전체과목 평균']
+    values = [
+        grade_analysis['1학기']['가중_평균'],
+        grade_analysis['1학기']['단순_평균'],
+        grade_analysis['2학기']['가중_평균'],
+        grade_analysis['2학기']['단순_평균'],
+        grade_analysis['전체']['주요과목_평균'],
+        grade_analysis['전체']['전체과목_평균']
+    ]
+    
+    fig.add_trace(go.Bar(
+        x=categories,
+        y=values,
+        text=[f'{v:.2f}' for v in values],
+        textposition='auto',
+    ))
+    
+    fig.update_layout(
+        title='등급 평균 비교',
+        xaxis_title='구분',
+        yaxis_title='등급',
+        yaxis=dict(
+            range=[9.5, 0.5],  # 1등급이 위로 가도록 y축 반전
+            tickmode='linear',
+            tick0=1,
+            dtick=1
+        )
+    )
+    
+    return fig
+
+def create_credit_weighted_chart(grade_analysis: Dict[str, Any]) -> go.Figure:
+    """학점 가중치를 고려한 과목별 차트를 생성합니다."""
+    fig = go.Figure()
+    
+    # 1학기 데이터
+    subjects_1 = list(grade_analysis['1학기']['과목별_등급'].keys())
+    grades_1 = []
+    weighted_grades_1 = []
+    
+    for subject in subjects_1:
+        data = grade_analysis['1학기']['과목별_등급'][subject]
+        grades_1.append(data['등급'])
+        weighted_grades_1.append(data['등급'] * data['학점수'])
+    
+    # 2학기 데이터
+    subjects_2 = list(grade_analysis['2학기']['과목별_등급'].keys())
+    grades_2 = []
+    weighted_grades_2 = []
+    
+    for subject in subjects_2:
+        data = grade_analysis['2학기']['과목별_등급'][subject]
+        grades_2.append(data['등급'])
+        weighted_grades_2.append(data['등급'] * data['학점수'])
+    
+    # 1학기 일반 등급
+    fig.add_trace(go.Scatter(
+        name='1학기 등급',
+        x=subjects_1,
+        y=grades_1,
+        mode='lines+markers',
+        line=dict(dash='solid')
+    ))
+    
+    # 1학기 가중 등급
+    fig.add_trace(go.Scatter(
+        name='1학기 가중등급',
+        x=subjects_1,
+        y=weighted_grades_1,
+        mode='lines+markers',
+        line=dict(dash='dot')
+    ))
+    
+    # 2학기 일반 등급
+    fig.add_trace(go.Scatter(
+        name='2학기 등급',
+        x=subjects_2,
+        y=grades_2,
+        mode='lines+markers',
+        line=dict(dash='solid')
+    ))
+    
+    # 2학기 가중 등급
+    fig.add_trace(go.Scatter(
+        name='2학기 가중등급',
+        x=subjects_2,
+        y=weighted_grades_2,
+        mode='lines+markers',
+        line=dict(dash='dot')
+    ))
+    
+    fig.update_layout(
+        title='과목별 등급과 가중등급 비교',
+        xaxis_title='과목',
+        yaxis_title='등급',
+        yaxis=dict(
+            range=[max(max(weighted_grades_1), max(weighted_grades_2)) + 0.5, 0.5],
+            tickmode='linear',
+            tick0=1,
+            dtick=1
+        ),
+        showlegend=True
+    )
+    
+    return fig 

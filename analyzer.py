@@ -297,9 +297,24 @@ def create_competency_chart(competency_data: Dict[str, Any]) -> go.Figure:
     
     return fig
 
-def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
+def analyze_student_record(student_data: Dict[str, Any], original_data: str = "") -> Dict[str, Any]:
     """학생 생활기록부를 분석하여 종합적인 결과를 반환합니다."""
     try:
+        # 성적 데이터 분석
+        grade_data = pd.DataFrame(student_data.get('grades', []))
+        if not grade_data.empty:
+            grade_analysis = analyze_grades(grade_data)
+            
+            # 차트 생성
+            grade_charts = {
+                '학기별_과목_비교': create_grade_comparison_chart(grade_analysis),
+                '평균_비교': create_average_comparison_chart(grade_analysis),
+                '가중치_비교': create_credit_weighted_chart(grade_analysis)
+            }
+        else:
+            grade_analysis = {}
+            grade_charts = {}
+        
         # 기본 정보 추출
         basic_info = {
             "학년": str(student_data.get("학년", "")),
@@ -324,6 +339,9 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
         
         # 분석 결과 구성
         analysis_results = {
+            "원본_데이터": original_data,
+            "성적_분석": grade_analysis,
+            "성적_차트": grade_charts,
             "학생_프로필": {
                 "기본_정보_요약": f"{basic_info['학년']}학년 {basic_info['반']}반 {basic_info['번호']}번 {basic_info['이름']} 학생",
                 "진로희망": basic_info["진로희망"],
