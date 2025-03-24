@@ -52,12 +52,6 @@ with st.sidebar:
     
     if uploaded_file:
         st.success("파일이 성공적으로 업로드되었습니다!")
-        
-        # 인코딩 선택 옵션
-        encoding_option = st.selectbox(
-            "파일 인코딩을 선택하세요",
-            ['utf-8-sig', 'utf-8', 'cp949', 'euc-kr']
-        )
 
 # 세션 상태 초기화
 if 'uploaded_file' not in st.session_state:
@@ -72,8 +66,8 @@ if 'analysis_results' not in st.session_state:
 # 메인 컨텐츠 영역
 if uploaded_file:
     try:
-        # CSV 파일 처리
-        df = process_csv_file(uploaded_file, encoding_option)
+        # CSV 파일 처리 (기본 인코딩 사용)
+        df = process_csv_file(uploaded_file)
         student_info = extract_student_info(df)
         
         # 탭 생성
