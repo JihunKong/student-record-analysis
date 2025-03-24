@@ -6,16 +6,18 @@ import json
 import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
+from dotenv import load_dotenv
 
-# Google Gemini API 키 설정
-def setup_gemini_api():
-    """Google Gemini API를 설정합니다."""
-    api_key = os.getenv("GEMINI_API_KEY")  # GitHub 환경변수 사용
-    if not api_key:
-        raise ValueError("GitHub 환경변수에 GEMINI_API_KEY가 설정되지 않았습니다.")
-    
-    genai.configure(api_key=api_key)
-    return genai
+# .env 파일 로드
+load_dotenv()
+
+# Gemini API 설정
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
+
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-1.5-pro-002')
 
 def create_prompt_for_student_profile(student_data: Dict[str, Any]) -> str:
     """학생 프로필 분석을 위한 프롬프트를 생성합니다."""
@@ -110,7 +112,6 @@ def create_prompt_for_career_roadmap(student_data: Dict[str, Any]) -> str:
 
 def analyze_with_gemini(prompt: str) -> Dict[str, Any]:
     """Gemini API를 사용하여 분석을 수행합니다."""
-    model = genai.GenerativeModel('gemini-pro')
     response = model.generate_content(prompt)
     
     # JSON 문자열 추출 및 파싱
@@ -249,37 +250,77 @@ def create_competency_chart(competency_data: Dict[str, Any]) -> go.Figure:
 
 def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
     """학생 생활기록부를 종합적으로 분석합니다."""
-    setup_gemini_api()
-    
-    results = {}
-    
-    # 학생 프로필 분석
-    profile_prompt = create_prompt_for_student_profile(student_data)
-    results["학생_프로필"] = analyze_with_gemini(profile_prompt)
-    
-    # 진로 적합성 분석
-    career_prompt = create_prompt_for_career_analysis(student_data)
-    results["진로_적합성"] = analyze_with_gemini(career_prompt)
-    
-    # 학업 발전 전략 분석
-    academic_prompt = create_prompt_for_academic_strategy(student_data)
-    results["학업_발전_전략"] = analyze_with_gemini(academic_prompt)
-    
-    # 학부모 상담 가이드 생성
-    parent_prompt = create_prompt_for_parent_consultation(student_data)
-    results["학부모_상담_가이드"] = analyze_with_gemini(parent_prompt)
-    
-    # 진로 로드맵 생성
-    roadmap_prompt = create_prompt_for_career_roadmap(student_data)
-    results["진로_로드맵"] = analyze_with_gemini(roadmap_prompt)
-    
-    # 시각화 데이터 추가
-    results["시각화"] = {
-        "교과_성취도": create_subject_radar_chart(student_data.get("교과_성취도", {})),
-        "활동_타임라인": create_activity_timeline(student_data.get("활동_내역", [])),
-        "진로_분석": create_career_analysis_chart(results["진로_적합성"]),
-        "학습_스타일": create_learning_style_chart(results["학업_발전_전략"].get("학습_스타일", {})),
-        "핵심_역량": create_competency_chart(results["학생_프로필"].get("핵심_역량", {}))
-    }
-    
-    return results 
+    try:
+        # 기본 정보 추출
+        basic_info = {
+            "학년": student_data.get("학년", ""),
+            "반": student_data.get("반", ""),
+            "번호": student_data.get("번호", ""),
+            "이름": student_data.get("이름", ""),
+            "진로희망": student_data.get("진로희망", "")
+        }
+        
+        # 교과별 성취도 분석
+        academic_performance = student_data.get("academic_performance", {})
+        academic_analysis = {}
+        
+        for subject, content in academic_performance.items():
+            prompt = f"""
+            다음은 {subject} 과목의 성취도 내용입니다. 
+            이 내용을 바탕으로 학생의 성취 수준과 특징을 분석해주세요.
+            
+            내용: {content}
+            """
+            
+            response = model.generate_content(prompt)
+            academic_analysis[subject] = response.text
+        
+        # 활동 내역 분석
+        activities = student_data.get("activities", {})
+        activity_analysis = {}
+        
+        for activity, content in activities.items():
+            prompt = f"""
+            다음은 {activity} 활동 내용입니다.
+            이 활동을 통해 보여진 학생의 특성과 역량을 분석해주세요.
+            
+            내용: {content}
+            """
+            
+            response = model.generate_content(prompt)
+            activity_analysis[activity] = response.text
+        
+        # 진로 적합성 분석
+        career_prompt = f"""
+        다음은 학생의 진로 희망과 활동 내역입니다.
+        이를 바탕으로 진로 적합성을 분석해주세요.
+        
+        진로 희망: {basic_info["진로희망"]}
+        활동 내역: {json.dumps(activity_analysis, ensure_ascii=False)}
+        """
+        
+        career_response = model.generate_content(career_prompt)
+        
+        # 통합 분석 결과 생성
+        analysis_results = {
+            "학생_프로필": {
+                "기본_정보": basic_info,
+                "교과별_분석": academic_analysis,
+                "활동_분석": activity_analysis
+            },
+            "진로_적합성": career_response.text
+        }
+        
+        # 시각화 데이터 추가
+        analysis_results["시각화"] = {
+            "교과_성취도": create_subject_radar_chart(student_data.get("교과_성취도", {})),
+            "활동_타임라인": create_activity_timeline(student_data.get("활동_내역", [])),
+            "진로_분석": create_career_analysis_chart(analysis_results["진로_적합성"]),
+            "학습_스타일": create_learning_style_chart(analysis_results["학생_프로필"]["활동_분석"]),
+            "핵심_역량": create_competency_chart(analysis_results["학생_프로필"]["활동_분석"])
+        }
+        
+        return analysis_results
+        
+    except Exception as e:
+        raise Exception(f"분석 중 오류가 발생했습니다: {str(e)}") 
