@@ -18,29 +18,26 @@ def preprocess_csv(uploaded_file) -> pd.DataFrame:
         # UTF-8 실패시 CP949로 시도
         df = pd.read_csv(uploaded_file, encoding='cp949')
     
+    # 빈 컬럼 제거
+    df = df.dropna(axis=1, how='all')
+    
     # 컬럼명 전처리
-    df.columns = df.columns.str.strip().str.lower()
+    df.columns = df.columns.str.strip()
+    
+    # 필수 컬럼 확인
+    required_columns = ['국어', '수학', '영어', '한국사', '사회', '과학', '과학탐구실험', '정보', '체육', '음악', '미술']
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        raise ValueError(f"다음 필수 컬럼이 누락되었습니다: {', '.join(missing_columns)}")
+    
     return df
 
 def extract_student_info(df):
     """학생 정보를 추출합니다."""
-    # 컬럼명을 소문자로 변환하고 공백 제거
-    df.columns = df.columns.str.lower().str.strip()
-    
-    # 기본 정보 추출
     student_info = {
-        'grade': df['학년'].iloc[0] if '학년' in df.columns else None,
-        'class': df['반'].iloc[0] if '반' in df.columns else None,
-        'student_number': df['번호'].iloc[0] if '번호' in df.columns else None,
-        'name': df['이름'].iloc[0] if '이름' in df.columns else None,
-        'birth_date': df['생년월일'].iloc[0] if '생년월일' in df.columns else None,
-        'gender': df['성별'].iloc[0] if '성별' in df.columns else None,
-        'career_aspiration': df['진로희망'].iloc[0] if '진로희망' in df.columns else None,
-        'desired_profession': df['희망직업'].iloc[0] if '희망직업' in df.columns else None,
-        'desired_university': df['희망대학'].iloc[0] if '희망대학' in df.columns else None,
-        'desired_major': df['희망학과'].iloc[0] if '희망학과' in df.columns else None,
         'academic_performance': {},
-        'activities': {}
+        'activities': {},
+        'grades': {}
     }
     
     # 교과별 성취도 추출
@@ -50,10 +47,16 @@ def extract_student_info(df):
             student_info['academic_performance'][subject] = df[subject].iloc[0]
     
     # 활동 내역 추출
-    activities = ['자율활동', '동아리활동', '진로활동']
+    activities = ['자율', '동아리', '진로', '행특', '개인']
     for activity in activities:
         if activity in df.columns:
             student_info['activities'][activity] = df[activity].iloc[0]
+    
+    # 학기별 성적 추출
+    if '학기' in df.columns and '교과' in df.columns and '과목' in df.columns:
+        grades_data = df[['학기', '교과', '과목', '원점수/과목평균\n (표준편차)', '성취도\n (수강자수)', '석차등급']].copy()
+        grades_data = grades_data.dropna(subset=['학기', '교과', '과목'])
+        student_info['grades'] = grades_data.to_dict('records')
     
     return student_info
 

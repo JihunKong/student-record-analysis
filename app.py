@@ -86,29 +86,12 @@ if menu == "파일 업로드":
             
             # 학생 정보 표시
             st.subheader("학생 정보")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.write("**기본 정보**")
-                st.write(f"- 학년: {student_info['grade']}")
-                st.write(f"- 반: {student_info['class']}")
-                st.write(f"- 번호: {student_info['student_number']}")
-                st.write(f"- 이름: {student_info['name']}")
-                st.write(f"- 생년월일: {student_info['birth_date']}")
-                st.write(f"- 성별: {student_info['gender']}")
-            
-            with col2:
-                st.write("**진로 정보**")
-                st.write(f"- 진로희망: {student_info['career_aspiration']}")
-                st.write(f"- 희망직업: {student_info['desired_profession']}")
-                st.write(f"- 희망대학: {student_info['desired_university']}")
-                st.write(f"- 희망학과: {student_info['desired_major']}")
             
             # 교과별 성취도 표시
             st.subheader("교과별 성취도")
             academic_performance = student_info['academic_performance']
             if academic_performance:
-                performance_df = pd.DataFrame(list(academic_performance.items()), columns=['과목', '성취도'])
+                performance_df = pd.DataFrame(list(academic_performance.items()), columns=['과목', '활동 내용'])
                 st.dataframe(performance_df)
             
             # 활동 내역 표시
@@ -119,13 +102,19 @@ if menu == "파일 업로드":
                     st.write(f"**{activity}**")
                     st.write(content)
             
+            # 학기별 성적 표시
+            st.subheader("학기별 성적")
+            grades = student_info['grades']
+            if grades:
+                grades_df = pd.DataFrame(grades)
+                st.dataframe(grades_df)
+            
             # 분석 시작 버튼
             if st.button("분석 시작"):
-                with st.spinner("데이터를 분석하고 있습니다..."):
+                with st.spinner("분석 중..."):
                     analysis_results = analyze_student_record(student_info)
                     st.session_state.analysis_results = analysis_results
                     st.success("분석이 완료되었습니다!")
-                    st.experimental_rerun()
         
         except Exception as e:
             st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
