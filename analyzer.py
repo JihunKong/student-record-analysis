@@ -8,6 +8,8 @@ import plotly.express as px
 import numpy as np
 from dotenv import load_dotenv
 import re
+import anthropic
+import streamlit as st
 
 # .env 파일 로드
 load_dotenv()
@@ -117,11 +119,11 @@ def create_analysis_prompt(student_data: Dict[str, Any]) -> str:
     for semester in ['semester1', 'semester2']:
         semester_data = student_data['academic_records'][semester]
         grades = semester_data['grades']
-        averages = semester_data['average']
+        averages = semester_data.get('average', {})
         
         semester_summary = f"{semester.replace('semester', '')}학기:\n"
-        semester_summary += f"- 전체 평균: {averages['total']:.1f}\n"
-        semester_summary += f"- 주요과목 평균: {averages['main_subjects']:.1f}\n"
+        semester_summary += f"- 전체 평균: {averages.get('total', 0):.1f}\n"
+        semester_summary += f"- 주요과목 평균: {averages.get('main_subjects', 0):.1f}\n"
         semester_summary += "- 과목별 등급:\n"
         
         for subject, grade in grades.items():
@@ -169,15 +171,27 @@ def create_analysis_prompt(student_data: Dict[str, Any]) -> str:
 """
     return prompt
 
-def analyze_with_gemini(student_data: Dict[str, Any]) -> str:
+def analyze_with_claude(student_data: Dict[str, Any]) -> str:
     try:
-        genai.configure(api_key='your_api_key')
-        model = genai.GenerativeModel('gemini-pro')
+        client = anthropic.Anthropic(
+            api_key=st.secrets["ANTHROPIC_API_KEY"]
+        )
         
         prompt = create_analysis_prompt(student_data)
-        response = model.generate_content(prompt)
+        message = client.messages.create(
+            model="claude-3-sonnet-20240229",
+            max_tokens=4000,
+            temperature=0.7,
+            system="당신은 학생 데이터를 분석하는 전문가입니다. 객관적인 데이터를 기반으로 학생의 강점을 발견하고 발전 가능성을 제시해주세요.",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
         
-        return response.text
+        return message.content
         
     except Exception as e:
         return f"AI 분석 중 오류가 발생했습니다: {str(e)}"
@@ -375,10 +389,10 @@ def analyze_student_record(student_data: Dict[str, Any], original_data: str = ""
         roadmap_prompt = create_prompt_for_career_roadmap(student_data)
         
         # 각 분석 수행
-        profile_analysis = analyze_with_gemini(student_data)
-        career_analysis = analyze_with_gemini(student_data)
-        academic_analysis = analyze_with_gemini(student_data)
-        roadmap_analysis = analyze_with_gemini(student_data)
+        profile_analysis = analyze_with_claude(student_data)
+        career_analysis = analyze_with_claude(student_data)
+        academic_analysis = analyze_with_claude(student_data)
+        roadmap_analysis = analyze_with_claude(student_data)
         
         # 분석 결과 통합
         if "error" not in profile_analysis:
