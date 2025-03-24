@@ -1,21 +1,92 @@
 import streamlit as st
 import pandas as pd
 import os
-import json
 from dotenv import load_dotenv
-import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
-import google.generativeai as genai
 import numpy as np
 
 # 로컬 모듈 임포트
 from utils import process_csv_file, extract_student_info
-from analyzer import analyze_student_record, create_subject_radar_chart, create_activity_timeline
 
 # .env 파일 로드
 load_dotenv()
+
+def analyze_student_record(student_info: dict) -> dict:
+    """학생 생활기록부를 분석하여 종합적인 결과를 반환합니다."""
+    try:
+        # 1학기 성적 분석
+        semester1 = student_info['academic_records']['semester1']
+        semester1_avg = semester1['average']['total']
+        semester1_main_avg = semester1['average']['main_subjects']
+        
+        # 2학기 성적 분석
+        semester2 = student_info['academic_records']['semester2']
+        semester2_avg = semester2['average']['total']
+        semester2_main_avg = semester2['average']['main_subjects']
+        
+        # 전체 성적 분석
+        total = student_info['academic_records']['total']
+        total_avg = total['average']['total']
+        total_main_avg = total['average']['main_subjects']
+        
+        # 성적 향상도 분석
+        grade_improvement = semester2_avg - semester1_avg
+        main_subjects_improvement = semester2_main_avg - semester1_main_avg
+        
+        # 교과별 세부특기사항 분석
+        subject_strengths = []
+        for subject, content in student_info['special_notes']['subjects'].items():
+            if "우수" in content or "탁월" in content or "뛰어난" in content:
+                subject_strengths.append(subject)
+        
+        # 활동 분석
+        activity_summary = []
+        for activity_type, content in student_info['special_notes']['activities'].items():
+            if content.strip():
+                activity_summary.append(f"- {activity_type}: {content[:100]}...")
+        
+        # 진로 희망
+        career = student_info.get('career_aspiration', '미정')
+        
+        # 분석 결과 생성
+        analysis = f"""
+### 1. 학업 역량 분석
+
+#### 전반적인 학업 수준과 발전 추이
+- 전체 평균: {total_avg:.2f}
+- 1학기 평균: {semester1_avg:.2f} → 2학기 평균: {semester2_avg:.2f}
+- 성적 향상도: {grade_improvement:+.2f}점
+
+#### 주요 과목 분석
+- 주요 과목 전체 평균: {total_main_avg:.2f}
+- 1학기 주요과목 평균: {semester1_main_avg:.2f} → 2학기 주요과목 평균: {semester2_main_avg:.2f}
+- 주요 과목 향상도: {main_subjects_improvement:+.2f}점
+
+#### 학업 강점 과목
+{', '.join(subject_strengths) if subject_strengths else '분석 중...'}
+
+### 2. 비교과 활동 분석
+
+#### 주요 활동 내역
+{''.join(f"\\n{activity}" for activity in activity_summary) if activity_summary else '활동 내역이 충분하지 않습니다.'}
+
+### 3. 진로 분석
+
+#### 진로 희망
+{career}
+
+### 4. 종합 제언
+1. {'성적이 전반적으로 향상되는 추세를 보입니다.' if grade_improvement > 0 else '성적 향상을 위한 노력이 필요합니다.'}
+2. {'주요 과목에서 긍정적인 발전을 보이고 있습니다.' if main_subjects_improvement > 0 else '주요 과목 보완이 필요합니다.'}
+3. {'다양한 비교과 활동에 적극적으로 참여하고 있습니다.' if len(activity_summary) >= 3 else '비교과 활동 참여를 늘리는 것이 좋겠습니다.'}
+"""
+        
+        return {"analysis": analysis}
+        
+    except Exception as e:
+        print(f"분석 중 오류 발생: {str(e)}")
+        return {"error": str(e)}
 
 # 페이지 설정
 st.set_page_config(
@@ -78,15 +149,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-# Gemini API 설정
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if not GEMINI_API_KEY:
-    st.error("GitHub 환경변수에 GEMINI_API_KEY가 설정되지 않았습니다.")
-    st.stop()
-
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-pro-002')
 
 # 앱 타이틀
 st.markdown('<h1 class="main-header">📚 학생부 분석 시스템</h1>', unsafe_allow_html=True)
