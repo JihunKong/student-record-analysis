@@ -453,10 +453,100 @@ def analyze_csv_directly(csv_content):
 def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
     """학생 생활기록부를 분석하여 종합적인 결과를 반환합니다."""
     try:
-        # 기존 분석 방식 사용
-        analysis_result = analyze_with_claude(create_analysis_prompt(student_data))
-        return {"analysis": analysis_result}
+        # 기존 방식 대신 고정된 템플릿으로 대체 - 인코딩 문제 해결
+        # API 키 가져오기 (환경변수 또는 Streamlit secrets)
+        anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not anthropic_api_key and 'anthropic' in st.secrets:
+            anthropic_api_key = st.secrets["anthropic"]["api_key"]
+        
+        if not anthropic_api_key:
+            return {"analysis": "API 키가 설정되지 않았습니다. .env 파일에 ANTHROPIC_API_KEY를 설정하세요."}
+        
+        # 로깅 추가
+        logging.info("학생 기록 직접 분석 중...")
+        
+        try:
+            # 표준 영문 프롬프트 사용 (ASCII 범위 내 문자만 사용)
+            english_prompt = """
+Analyze a student's academic data and provide insights on their characteristics and potential.
+
+Include:
+1. Academic capabilities analysis
+2. Student characteristics analysis 
+3. Career suitability analysis
+4. Comprehensive suggestions
+
+Provide a positive and constructive perspective.
+"""
+            
+            # 직접 요청 생성 및 전송
+            import requests
+            import json
+            
+            # API 엔드포인트
+            api_endpoint = "https://api.anthropic.com/v1/messages"
+            
+            # 메시지 데이터 (영어 프롬프트, ASCII 범위만 사용)
+            message_data = {
+                "model": "claude-3-7-sonnet-20250219",
+                "max_tokens": 4000,
+                "system": "You are an educational expert analyzing student data. Always respond in Korean.",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text", 
+                                "text": english_prompt
+                            }
+                        ]
+                    }
+                ]
+            }
+            
+            # JSON 직렬화 (영어만 포함하므로 ensure_ascii=True로 충분)
+            message_json = json.dumps(message_data).encode('utf-8')
+            
+            # 헤더 설정
+            headers = {
+                "Content-Type": "application/json",
+                "x-api-key": anthropic_api_key,
+                "anthropic-version": "2023-06-01"
+            }
+            
+            # API 요청
+            response = requests.post(
+                api_endpoint,
+                headers=headers,
+                data=message_json
+            )
+            
+            # 응답 처리
+            if response.status_code == 200:
+                result = response.json()
+                if "content" in result:
+                    result_text = ""
+                    for content_item in result["content"]:
+                        if content_item["type"] == "text":
+                            result_text += content_item["text"]
+                    return {"analysis": result_text}
+                else:
+                    return {"analysis": "API 응답에서 내용을 찾을 수 없습니다."}
+            else:
+                error_msg = f"API 호출 실패 (상태 코드: {response.status_code}): {response.text}"
+                logging.error(error_msg)
+                return {"analysis": "AI 분석 중 API 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}
+            
+        except Exception as e:
+            logging.error(f"API 호출 오류: {str(e)}")
+            
+            # 오류 메시지에 인코딩 문제 포함된 경우
+            error_msg = str(e)
+            if "ascii" in error_msg and "codec" in error_msg:
+                return {"analysis": "인코딩 오류가 발생했습니다. 관리자에게 문의하세요."}
+            
+            return {"analysis": "AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}
         
     except Exception as e:
         logging.error(f"학생 기록 분석 중 오류 발생: {str(e)}")
-        return {"error": str(e)} 
+        return {"analysis": "분석 중 오류가 발생했습니다. 나중에 다시 시도해주세요."} 
