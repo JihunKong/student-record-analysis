@@ -119,45 +119,41 @@ def analyze_with_gemini(prompt: str) -> Dict[str, Any]:
         try:
             # 응답에서 JSON 부분 추출
             json_str = response.text
-            # 만약 마크다운 코드 블록으로 감싸진 경우 제거
+            
+            # 마크다운 코드 블록에서 JSON 추출
             if '```json' in json_str:
                 json_str = json_str.split('```json')[1].split('```')[0].strip()
             elif '```' in json_str:
                 json_str = json_str.split('```')[1].split('```')[0].strip()
             
-            # NumPy 타입을 Python 기본 타입으로 변환하는 JSON 인코더
-            class NumpyEncoder(json.JSONEncoder):
-                def default(self, obj):
-                    if isinstance(obj, (np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64,
-                                     np.uint8, np.uint16, np.uint32, np.uint64)):
-                        return int(obj)
-                    elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
-                        return float(obj)
-                    elif isinstance(obj, (np.bool_)):
-                        return bool(obj)
-                    elif isinstance(obj, (np.ndarray,)):
-                        return obj.tolist()
-                    elif isinstance(obj, pd.Series):
-                        return obj.tolist()
-                    elif pd.isna(obj):
-                        return None
-                    return super().default(obj)
-            
-            # JSON 파싱 시도
             try:
-                # 먼저 문자열을 Python 객체로 변환
-                python_obj = eval(json_str)
-                # Python 객체를 JSON으로 직렬화
-                result = json.loads(json.dumps(python_obj, cls=NumpyEncoder))
-            except (json.JSONDecodeError, SyntaxError):
-                # 직접 변환 시도
-                result = json.loads(json.dumps(eval(json_str), cls=NumpyEncoder))
+                # 직접 JSON 파싱 시도
+                result = json.loads(json_str)
+            except json.JSONDecodeError:
+                # JSON 파싱 실패 시 문자열 정리 후 다시 시도
+                # 줄바꿈, 탭, 공백 등 정리
+                json_str = json_str.replace('\n', ' ').replace('\t', ' ')
+                # 연속된 공백을 하나로
+                json_str = ' '.join(json_str.split())
+                # 작은따옴표를 큰따옴표로 변환
+                json_str = json_str.replace("'", '"')
+                # 따옴표 없는 키에 따옴표 추가
+                import re
+                json_str = re.sub(r'([{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', json_str)
+                
+                try:
+                    result = json.loads(json_str)
+                except json.JSONDecodeError as e:
+                    print(f"JSON 파싱 오류: {e}")
+                    print(f"정리된 JSON 문자열: {json_str}")
+                    raise Exception("JSON 파싱에 실패했습니다. 응답 형식이 올바르지 않습니다.")
             
             return result
+            
         except Exception as e:
-            print(f"JSON 파싱 오류: {e}")
+            print(f"응답 처리 오류: {e}")
             print(f"원본 응답: {response.text}")
-            return {"error": str(e), "raw_response": response.text}
+            raise Exception(f"응답 처리 중 오류가 발생했습니다: {str(e)}")
             
     except Exception as e:
         print(f"Gemini API 호출 오류: {e}")
