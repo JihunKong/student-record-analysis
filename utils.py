@@ -348,39 +348,25 @@ def create_radar_chart(categories: Dict[str, float]) -> plt.Figure:
     
     return fig
 
-def process_csv_file(file):
-    """CSV 파일을 처리하여 문자열로 반환합니다."""
+def process_csv_file(file, encoding='utf-8-sig'):
+    """CSV 파일을 처리하여 데이터프레임으로 반환합니다."""
     try:
-        # 파일 내용을 문자열로 읽기
-        content = file.read().decode('utf-8')
+        # CSV 파일 읽기
+        df = pd.read_csv(file, encoding=encoding)
         
-        # 원본 데이터 보존
-        original_data = content
+        # 빈 행과 열 제거
+        df = df.dropna(how='all').dropna(axis=1, how='all')
         
-        # 파일 내용을 Gemini에게 전달하기 위한 형식으로 정리
-        formatted_content = (
-            "아래는 학생 생활기록부 데이터입니다. 이 데이터를 분석해주세요:\n\n"
-            f"{content}\n"
-        )
+        # 첫 번째 유효한 행을 열 이름으로 설정
+        first_valid_row = df.iloc[0]
+        df.columns = first_valid_row
+        df = df.iloc[1:]
         
-        return formatted_content, original_data
+        # 인덱스 재설정
+        df = df.reset_index(drop=True)
         
-    except UnicodeDecodeError:
-        try:
-            # UTF-8로 읽기 실패시 CP949로 시도
-            file.seek(0)  # 파일 포인터를 처음으로 되돌림
-            content = file.read().decode('cp949')
-            
-            # 원본 데이터 보존
-            original_data = content
-            
-            formatted_content = (
-                "아래는 학생 생활기록부 데이터입니다. 이 데이터를 분석해주세요:\n\n"
-                f"{content}\n"
-            )
-            return formatted_content, original_data
-        except Exception as e:
-            raise Exception(f"파일 인코딩 처리 중 오류 발생: {str(e)}")
+        return df
+        
     except Exception as e:
         raise Exception(f"CSV 파일 처리 중 오류 발생: {str(e)}")
 
