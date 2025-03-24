@@ -10,8 +10,7 @@ from datetime import datetime
 import google.generativeai as genai
 
 # 로컬 모듈 임포트
-from utils import preprocess_csv, extract_student_info, create_downloadable_report, plot_timeline, create_radar_chart, process_csv_file, create_analysis_prompt, analyze_grades, create_grade_comparison_chart, create_average_comparison_chart, create_credit_weighted_chart
-from analyzer import analyze_student_record, analyze_with_gemini
+from utils import process_csv_file, extract_student_info, analyze_with_gemini
 
 # .env 파일 로드
 load_dotenv()
@@ -53,16 +52,6 @@ with st.sidebar:
     if uploaded_file:
         st.success("파일이 성공적으로 업로드되었습니다!")
 
-# 세션 상태 초기화
-if 'uploaded_file' not in st.session_state:
-    st.session_state.uploaded_file = None
-if 'df' not in st.session_state:
-    st.session_state.df = None
-if 'student_info' not in st.session_state:
-    st.session_state.student_info = None
-if 'analysis_results' not in st.session_state:
-    st.session_state.analysis_results = None
-
 # 메인 컨텐츠 영역
 if uploaded_file:
     try:
@@ -71,7 +60,7 @@ if uploaded_file:
         student_info = extract_student_info(df)
         
         # 탭 생성
-        tab1, tab2, tab3 = st.tabs(["원본 데이터", "성적 분석", "세특 분석"])
+        tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
         
         with tab1:
             st.header("📊 원본 데이터")
@@ -140,41 +129,6 @@ if uploaded_file:
             
             st.plotly_chart(subject_comparison)
             
-            # 평균 비교 차트
-            averages = go.Figure()
-            
-            # 평균 데이터
-            avg_labels = ['1학기 단순평균', '1학기 가중평균', '2학기 단순평균', '2학기 가중평균', '전체 단순평균', '전체 가중평균']
-            avg_values = [
-                student_info['first_semester_average'],
-                student_info['first_semester_weighted_average'],
-                student_info['second_semester_average'],
-                student_info['second_semester_weighted_average'],
-                student_info['total_average'],
-                student_info['total_weighted_average']
-            ]
-            
-            averages.add_trace(go.Bar(
-                x=avg_labels,
-                y=avg_values,
-                text=[f'{avg:.2f}' for avg in avg_values],
-                textposition='auto',
-            ))
-            
-            averages.update_layout(
-                title='평균 등급 비교 (단순평균 vs 가중평균)',
-                xaxis_title='구분',
-                yaxis_title='등급',
-                yaxis=dict(
-                    range=[9.5, 0.5],  # 1등급이 위로 가도록 y축 반전
-                    tickmode='linear',
-                    tick0=1,
-                    dtick=1
-                )
-            )
-            
-            st.plotly_chart(averages)
-            
             # 평균 정보 표시
             st.subheader("📊 평균 등급 정보")
             col1, col2, col3 = st.columns(3)
@@ -190,9 +144,48 @@ if uploaded_file:
             with col3:
                 st.metric(label="전체 단순평균", value=f"{student_info['total_average']:.2f}")
                 st.metric(label="전체 가중평균", value=f"{student_info['total_weighted_average']:.2f}")
+            
+            # 평균 계산 과정 표시
+            st.subheader("📝 평균 계산 과정")
+            
+            # 1학기 계산 과정
+            st.write("### 1학기")
+            first_semester_grades = [g for g in student_info['grades'] if g['semester'] == '1' and g['grade'] != '0']
+            if first_semester_grades:
+                st.write("단순평균 계산:")
+                grade_sum = sum(float(g['grade']) for g in first_semester_grades)
+                grade_count = len(first_semester_grades)
+                st.write(f"- 등급 합계: {grade_sum}")
+                st.write(f"- 과목 수: {grade_count}")
+                st.write(f"- 계산: {grade_sum} ÷ {grade_count} = {grade_sum/grade_count:.2f}")
+                
+                st.write("\n가중평균 계산:")
+                weighted_sum = sum(float(g['grade']) * float(g['credit']) for g in first_semester_grades)
+                total_credits = sum(float(g['credit']) for g in first_semester_grades)
+                st.write(f"- 가중합계: {weighted_sum}")
+                st.write(f"- 총학점: {total_credits}")
+                st.write(f"- 계산: {weighted_sum} ÷ {total_credits} = {weighted_sum/total_credits:.2f}")
+            
+            # 2학기 계산 과정
+            st.write("### 2학기")
+            second_semester_grades = [g for g in student_info['grades'] if g['semester'] == '2' and g['grade'] != '0']
+            if second_semester_grades:
+                st.write("단순평균 계산:")
+                grade_sum = sum(float(g['grade']) for g in second_semester_grades)
+                grade_count = len(second_semester_grades)
+                st.write(f"- 등급 합계: {grade_sum}")
+                st.write(f"- 과목 수: {grade_count}")
+                st.write(f"- 계산: {grade_sum} ÷ {grade_count} = {grade_sum/grade_count:.2f}")
+                
+                st.write("\n가중평균 계산:")
+                weighted_sum = sum(float(g['grade']) * float(g['credit']) for g in second_semester_grades)
+                total_credits = sum(float(g['credit']) for g in second_semester_grades)
+                st.write(f"- 가중합계: {weighted_sum}")
+                st.write(f"- 총학점: {total_credits}")
+                st.write(f"- 계산: {weighted_sum} ÷ {total_credits} = {weighted_sum/total_credits:.2f}")
         
         with tab3:
-            st.header("📝 세부능력 및 특기사항 분석")
+            st.header("📝 세부능력 및 특기사항 열람")
             
             # 세특 데이터 표시
             if student_info['academic_performance']:
@@ -212,26 +205,18 @@ if uploaded_file:
             if student_info['career_aspiration']:
                 st.subheader("🎯 진로 희망")
                 st.write(student_info['career_aspiration'])
-            
-            # AI 분석 실행
-            st.subheader("🤖 AI 분석")
+        
+        with tab4:
+            st.header("🤖 AI 분석")
             
             if st.button("AI 분석 실행"):
                 with st.spinner("AI가 세특을 분석중입니다..."):
                     try:
-                        # 세특 데이터를 문자열로 변환
-                        setech_data = ""
-                        for subject, content in student_info['academic_performance'].items():
-                            setech_data += f"{subject}: {content}\n\n"
-                        
-                        for activity_type, content in student_info['activities'].items():
-                            setech_data += f"{activity_type} 활동: {content}\n\n"
-                        
-                        if student_info['career_aspiration']:
-                            setech_data += f"진로 희망: {student_info['career_aspiration']}\n\n"
+                        # 전체 데이터를 문자열로 변환
+                        data_str = df.to_string()
                         
                         # AI 분석 실행
-                        analysis_result = analyze_with_gemini(setech_data)
+                        analysis_result = analyze_with_gemini(data_str)
                         
                         # 분석 결과 표시
                         if isinstance(analysis_result, dict):
@@ -261,5 +246,4 @@ if uploaded_file:
 
 # 앱 실행
 if __name__ == "__main__":
-    # 추가 설정 등을 여기에 작성할 수 있습니다.
     pass 

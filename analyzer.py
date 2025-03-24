@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
 from dotenv import load_dotenv
+import re
 
 # .env 파일 로드
 load_dotenv()
@@ -110,142 +111,97 @@ def create_prompt_for_career_roadmap(student_data: Dict[str, Any]) -> str:
     """
     return prompt
 
-def analyze_with_gemini(prompt: str) -> Dict[str, Any]:
-    """Gemini API를 사용하여 텍스트를 분석합니다."""
+def analyze_with_gemini(data: str) -> dict:
+    """Gemini API를 사용하여 학생 데이터를 분석합니다."""
     try:
-        # Gemini 모델 설정
-        model = genai.GenerativeModel('gemini-1.5-pro-002')
-        
-        # 프롬프트에 JSON 형식 지정을 명시적으로 추가
-        formatted_prompt = f"""
-아래의 학생 생활기록부 데이터를 분석하여 정확히 다음 JSON 형식으로만 응답해주세요.
-다른 설명이나 텍스트를 절대 포함하지 마세요.
-마크다운 코드 블록을 사용하지 마세요.
-JSON 형식만 정확하게 반환해주세요.
+        # 프롬프트 생성
+        prompt = f"""
+다음은 학생의 생활기록부 데이터입니다. 이 데이터를 분석하여 학생의 특성과 진로 적합성을 파악해주세요.
+분석 결과는 반드시 다음과 같은 JSON 형식으로 작성해주세요:
 
 {{
     "학생_프로필": {{
-        "기본_정보": "학생의 기본 정보를 서술",
-        "강점": [
-            "강점1",
-            "강점2",
-            "강점3"
-        ],
-        "약점": [
-            "약점1",
-            "약점2"
-        ],
-        "학업_패턴": "학업 패턴 분석 결과"
+        "기본_정보": "학생의 전반적인 특성을 한 문단으로 요약",
+        "강점": ["주요 강점 1", "주요 강점 2", "주요 강점 3"],
+        "약점": ["개선이 필요한 부분 1", "개선이 필요한 부분 2"],
+        "학업_패턴": "학업 성향과 패턴 분석"
+    }},
+    "강점_분석": {{
+        "교과_영역": ["교과 관련 강점 1", "교과 관련 강점 2"],
+        "비교과_영역": ["비교과 활동 강점 1", "비교과 활동 강점 2"],
+        "종합_평가": "전반적인 강점 분석 결과"
     }},
     "진로_적합성": {{
-        "분석_결과": "진로 적합성 분석 결과",
-        "추천_진로": [
-            "추천 진로1",
-            "추천 진로2",
-            "추천 진로3"
-        ],
-        "진로_로드맵": "진로 달성을 위한 로드맵"
+        "분석_결과": "진로 적합성에 대한 종합적 분석",
+        "추천_진로": ["추천 진로 1", "추천 진로 2", "추천 진로 3"],
+        "진로_로드맵": "구체적인 진로 준비 계획"
     }},
-    "학업_발전_전략": {{
-        "분석_결과": "학업 발전 전략 분석 결과",
-        "개선_전략": [
-            "전략1",
-            "전략2",
-            "전략3"
-        ]
-    }},
-    "학부모_상담_가이드": {{
-        "분석_결과": "학부모 상담 분석 결과",
-        "상담_포인트": [
-            "상담 포인트1",
-            "상담 포인트2"
-        ],
-        "지원_방안": [
-            "지원 방안1",
-            "지원 방안2"
-        ]
-    }},
-    "진로_로드맵": {{
-        "단기_목표": [
-            "단기 목표1",
-            "단기 목표2"
-        ],
-        "중기_목표": [
-            "중기 목표1",
-            "중기 목표2"
-        ],
-        "장기_목표": [
-            "장기 목표1",
-            "장기 목표2"
-        ]
+    "개선_방향": {{
+        "학업_영역": ["개선점 1", "개선점 2"],
+        "활동_영역": ["활동 제안 1", "활동 제안 2"],
+        "종합_제언": "전반적인 개선 방향 제시"
     }}
 }}
 
+분석 시 다음 사항을 고려해주세요:
+1. 객관적인 데이터를 기반으로 분석해주세요.
+2. 긍정적인 관점에서 학생의 가능성을 발견해주세요.
+3. 구체적이고 실행 가능한 제안을 해주세요.
+4. 학생의 강점을 최대한 살리는 방향으로 분석해주세요.
+
 분석할 데이터:
-{prompt}
+{data}
 """
+
+        # Gemini API 호출
+        model = genai.GenerativeModel('gemini-1.5-pro-002')
+        response = model.generate_content(prompt)
         
-        # API 호출
-        response = model.generate_content(formatted_prompt)
-        
-        # 응답에서 JSON 문자열 추출
-        response_text = response.text.strip()
-        
-        # JSON 블록 추출을 위한 정규식 패턴
-        import re
-        
-        # 모든 공백 문자 정규화
-        response_text = ' '.join(response_text.split())
-        
-        # JSON 블록 찾기
-        json_pattern = r'\{.*\}'
-        json_match = re.search(json_pattern, response_text, re.DOTALL)
+        # 응답에서 JSON 블록 추출
+        json_pattern = r'\{[\s\S]*\}'
+        json_match = re.search(json_pattern, response.text)
         
         if json_match:
             json_str = json_match.group()
-            
-            # JSON 문자열 정리
-            # 1. 줄바꿈, 탭 제거
-            json_str = re.sub(r'[\n\t]', '', json_str)
-            
-            # 2. 불필요한 공백 제거
-            json_str = re.sub(r'\s+', ' ', json_str)
-            json_str = re.sub(r'"\s+:', '":', json_str)
-            json_str = re.sub(r':\s+"', ':"', json_str)
-            
-            # 3. 쉼표 정리
-            json_str = re.sub(r',\s*}', '}', json_str)
-            json_str = re.sub(r',\s*]', ']', json_str)
-            
-            # 4. 키를 따옴표로 감싸기
-            json_str = re.sub(r'([{,])\s*([a-zA-Z_가-힣][^:]*?):', r'\1"\2":', json_str)
-            
-            # 5. 작은따옴표를 큰따옴표로 변경
-            json_str = json_str.replace("'", '"')
-            
-            # 6. 따옴표로 감싸지지 않은 문자열 값 처리
-            json_str = re.sub(r':\s*([^"{}\[\],\s][^,}\]]*)', r':"\1"', json_str)
-            
             try:
-                # JSON 파싱
-                result = json.loads(json_str)
-                return result
+                return json.loads(json_str)
             except json.JSONDecodeError as e:
                 print(f"JSON 파싱 오류: {str(e)}")
-                print(f"정리된 JSON 문자열: {json_str}")
+                print(f"파싱 실패한 문자열: {json_str}")
                 return {
-                    "error": "JSON 파싱 오류",
-                    "details": str(e),
-                    "cleaned_json": json_str
+                    "학생_프로필": {
+                        "기본_정보": "분석 중 오류가 발생했습니다.",
+                        "강점": [],
+                        "약점": [],
+                        "학업_패턴": "분석 중 오류가 발생했습니다."
+                    },
+                    "강점_분석": {
+                        "교과_영역": [],
+                        "비교과_영역": [],
+                        "종합_평가": "분석 중 오류가 발생했습니다."
+                    },
+                    "진로_적합성": {
+                        "분석_결과": "분석 중 오류가 발생했습니다.",
+                        "추천_진로": [],
+                        "진로_로드맵": "분석 중 오류가 발생했습니다."
+                    },
+                    "개선_방향": {
+                        "학업_영역": [],
+                        "활동_영역": [],
+                        "종합_제언": "분석 중 오류가 발생했습니다."
+                    }
                 }
         else:
-            print("응답에서 JSON을 찾을 수 없습니다.")
-            print(f"전체 응답: {response_text}")
-            return {"error": "응답에서 JSON을 찾을 수 없습니다."}
+            print("JSON 블록을 찾을 수 없습니다.")
+            return {
+                "error": "AI 분석 결과를 처리할 수 없습니다."
+            }
             
     except Exception as e:
-        print(f"API 호출 중 오류: {str(e)}")
-        return {"error": f"API 호출 중 오류: {str(e)}"}
+        print(f"분석 중 오류 발생: {str(e)}")
+        return {
+            "error": f"분석 중 오류가 발생했습니다: {str(e)}"
+        }
 
 def create_subject_radar_chart(subject_data: Dict[str, Any]) -> go.Figure:
     """교과별 성취도를 레이더 차트로 시각화합니다."""
