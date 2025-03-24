@@ -118,40 +118,72 @@ def analyze_with_gemini(prompt: str) -> Dict[str, Any]:
         
         # 프롬프트에 JSON 형식 지정을 명시적으로 추가
         formatted_prompt = f"""
-        다음 학생 생활기록부 데이터를 분석하여 JSON 형식으로 응답해주세요.
-        응답은 반드시 아래 형식의 JSON만을 반환해야 합니다. 다른 설명이나 텍스트를 포함하지 마세요.
-        
-        {{
-            "학생_프로필": {{
-                "기본_정보": "string",
-                "강점": ["string"],
-                "약점": ["string"],
-                "학업_패턴": "string"
-            }},
-            "진로_적합성": {{
-                "분석_결과": "string",
-                "추천_진로": ["string"],
-                "진로_로드맵": "string"
-            }},
-            "학업_발전_전략": {{
-                "분석_결과": "string",
-                "개선_전략": ["string"]
-            }},
-            "학부모_상담_가이드": {{
-                "분석_결과": "string",
-                "상담_포인트": ["string"],
-                "지원_방안": ["string"]
-            }},
-            "진로_로드맵": {{
-                "단기_목표": ["string"],
-                "중기_목표": ["string"],
-                "장기_목표": ["string"]
-            }}
-        }}
+아래의 학생 생활기록부 데이터를 분석하여 정확히 다음 JSON 형식으로만 응답해주세요.
+다른 설명이나 텍스트를 절대 포함하지 마세요.
+마크다운 코드 블록을 사용하지 마세요.
+JSON 형식만 정확하게 반환해주세요.
 
-        분석할 데이터:
-        {prompt}
-        """
+{{
+    "학생_프로필": {{
+        "기본_정보": "학생의 기본 정보를 서술",
+        "강점": [
+            "강점1",
+            "강점2",
+            "강점3"
+        ],
+        "약점": [
+            "약점1",
+            "약점2"
+        ],
+        "학업_패턴": "학업 패턴 분석 결과"
+    }},
+    "진로_적합성": {{
+        "분석_결과": "진로 적합성 분석 결과",
+        "추천_진로": [
+            "추천 진로1",
+            "추천 진로2",
+            "추천 진로3"
+        ],
+        "진로_로드맵": "진로 달성을 위한 로드맵"
+    }},
+    "학업_발전_전략": {{
+        "분석_결과": "학업 발전 전략 분석 결과",
+        "개선_전략": [
+            "전략1",
+            "전략2",
+            "전략3"
+        ]
+    }},
+    "학부모_상담_가이드": {{
+        "분석_결과": "학부모 상담 분석 결과",
+        "상담_포인트": [
+            "상담 포인트1",
+            "상담 포인트2"
+        ],
+        "지원_방안": [
+            "지원 방안1",
+            "지원 방안2"
+        ]
+    }},
+    "진로_로드맵": {{
+        "단기_목표": [
+            "단기 목표1",
+            "단기 목표2"
+        ],
+        "중기_목표": [
+            "중기 목표1",
+            "중기 목표2"
+        ],
+        "장기_목표": [
+            "장기 목표1",
+            "장기 목표2"
+        ]
+    }}
+}}
+
+분석할 데이터:
+{prompt}
+"""
         
         # API 호출
         response = model.generate_content(formatted_prompt)
@@ -161,35 +193,51 @@ def analyze_with_gemini(prompt: str) -> Dict[str, Any]:
         
         # JSON 블록 추출을 위한 정규식 패턴
         import re
-        json_pattern = r'\{[\s\S]*\}'
-        json_match = re.search(json_pattern, response_text)
+        
+        # 모든 공백 문자 정규화
+        response_text = ' '.join(response_text.split())
+        
+        # JSON 블록 찾기
+        json_pattern = r'\{.*\}'
+        json_match = re.search(json_pattern, response_text, re.DOTALL)
         
         if json_match:
             json_str = json_match.group()
-            # JSON 문자열 정리
-            json_str = re.sub(r'[\n\t]', '', json_str)  # 줄바꿈과 탭 제거
-            json_str = re.sub(r',\s*}', '}', json_str)  # 마지막 쉼표 제거
-            json_str = re.sub(r',\s*]', ']', json_str)  # 마지막 쉼표 제거
-            json_str = re.sub(r'([{,])\s*([a-zA-Z_가-힣][^:]*?):', r'\1"\2":', json_str)  # 키를 따옴표로 감싸기
             
-            # JSON 파싱
+            # JSON 문자열 정리
+            # 1. 줄바꿈, 탭 제거
+            json_str = re.sub(r'[\n\t]', '', json_str)
+            
+            # 2. 불필요한 공백 제거
+            json_str = re.sub(r'\s+', ' ', json_str)
+            json_str = re.sub(r'"\s+:', '":', json_str)
+            json_str = re.sub(r':\s+"', ':"', json_str)
+            
+            # 3. 쉼표 정리
+            json_str = re.sub(r',\s*}', '}', json_str)
+            json_str = re.sub(r',\s*]', ']', json_str)
+            
+            # 4. 키를 따옴표로 감싸기
+            json_str = re.sub(r'([{,])\s*([a-zA-Z_가-힣][^:]*?):', r'\1"\2":', json_str)
+            
+            # 5. 작은따옴표를 큰따옴표로 변경
+            json_str = json_str.replace("'", '"')
+            
+            # 6. 따옴표로 감싸지지 않은 문자열 값 처리
+            json_str = re.sub(r':\s*([^"{}\[\],\s][^,}\]]*)', r':"\1"', json_str)
+            
             try:
+                # JSON 파싱
                 result = json.loads(json_str)
                 return result
             except json.JSONDecodeError as e:
                 print(f"JSON 파싱 오류: {str(e)}")
-                print(f"파싱 시도한 문자열: {json_str}")
-                
-                # 백업 방법: 더 엄격한 정리 시도
-                try:
-                    # 모든 작은따옴표를 큰따옴표로 변경
-                    json_str = json_str.replace("'", '"')
-                    # 따옴표로 감싸지지 않은 문자열 찾아서 감싸기
-                    json_str = re.sub(r':\s*([^"{}\[\],\s][^,}\]]*)', r': "\1"', json_str)
-                    result = json.loads(json_str)
-                    return result
-                except json.JSONDecodeError as e2:
-                    return {"error": f"JSON 파싱 오류: {str(e2)}"}
+                print(f"정리된 JSON 문자열: {json_str}")
+                return {
+                    "error": "JSON 파싱 오류",
+                    "details": str(e),
+                    "cleaned_json": json_str
+                }
         else:
             print("응답에서 JSON을 찾을 수 없습니다.")
             print(f"전체 응답: {response_text}")
