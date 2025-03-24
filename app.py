@@ -298,13 +298,14 @@ def main():
                 # 이미 처리된 정보가 있으면 재사용
                 student_info = st.session_state.student_info
             
+            # 탭 생성 - 항상 표시
+            tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
+            
             # 학생 정보가 비어있으면 예외 발생
             if not student_info:
-                st.warning("학생 정보를 충분히 추출할 수 없습니다. 일부 기능이 제한될 수 있습니다.")
+                with tab1, tab2, tab3, tab4:
+                    st.warning("학생 정보를 충분히 추출할 수 없습니다. 일부 기능이 제한될 수 있습니다.")
             else:
-                # 탭 생성
-                tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
-                
                 with tab1:
                     st.markdown('<h2 class="section-header">📊 원본 데이터</h2>', unsafe_allow_html=True)
                     
@@ -651,6 +652,12 @@ def main():
             st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
             import traceback
             st.text(traceback.format_exc())
+    else:
+        # 파일이 업로드되지 않은 경우에도 탭 표시
+        tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
+        
+        with tab1, tab2, tab3, tab4:
+            st.info("분석을 시작하려면, 좌측 사이드바에서 CSV 파일을 업로드해주세요.")
 
 # 앱 실행
 if __name__ == "__main__":
