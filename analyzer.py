@@ -138,7 +138,7 @@ CSV 데이터:
         
         # API 요청 페이로드
         payload = {
-            "model": "gpt-4-turbo",
+            "model": "o3-mini",
             "messages": [
                 {
                     "role": "system", 
@@ -212,7 +212,7 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
         
         # API 요청 페이로드
         payload = {
-            "model": "gpt-4-turbo",
+            "model": "o3-mini",
             "messages": [
                 {
                     "role": "system", 
