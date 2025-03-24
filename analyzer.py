@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import re
 import anthropic
 import streamlit as st
+import logging
 
 # .env 파일 로드
 load_dotenv()
@@ -90,56 +91,53 @@ def create_analysis_prompt(student_data: Dict[str, Any]) -> str:
 """
     return prompt
 
-def analyze_with_claude(student_data: Dict[str, Any]) -> str:
-    """Claude API를 사용하여 학생 데이터를 분석합니다."""
+def analyze_with_claude(prompt):
+    """Anthropic Claude API로 학생 데이터 분석"""
     try:
-        # API 키를 환경 변수 또는 streamlit secrets에서 가져오기
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        # API 키 가져오기 (환경변수 또는 Streamlit secrets)
+        anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not anthropic_api_key and 'anthropic' in st.secrets:
+            anthropic_api_key = st.secrets["anthropic"]["api_key"]
         
-        # 환경 변수에 없는 경우 streamlit secrets에서 시도
-        if not api_key and hasattr(st, 'secrets'):
-            api_key = st.secrets.get("ANTHROPIC_API_KEY")
+        if not anthropic_api_key:
+            return "API 키가 설정되지 않았습니다. .env 파일에 ANTHROPIC_API_KEY를 설정하세요."
         
-        if not api_key:
-            return ("API 키가 설정되지 않았습니다. `.env` 파일이나 Streamlit secrets에 "
-                   "ANTHROPIC_API_KEY를 설정해주세요.")
+        # API 호출
+        client = anthropic.Anthropic(api_key=anthropic_api_key)
         
-        # API 클라이언트 생성
         try:
-            client = anthropic.Anthropic(api_key=api_key)
-            print("Claude API 클라이언트 생성 성공")
-        except Exception as e:
-            return f"Claude API 클라이언트 생성 실패: {str(e)}"
-        
-        # 프롬프트 생성
-        prompt = create_analysis_prompt(student_data)
-        print("분석 프롬프트 생성 완료")
-        
-        print("Claude API 호출 시작...")
-        try:
-            # Claude API 호출
+            # API 호출 전에 인코딩 문제를 피하기 위해 프롬프트 처리
             message = client.messages.create(
                 model="claude-3-sonnet-20240229",
-                max_tokens=4000,
+                max_tokens=2000,
                 temperature=0.7,
-                system="당신은 학생 데이터를 분석하는 전문가입니다. 객관적인 데이터를 기반으로 학생의 강점을 발견하고 약점을 보완하는 방향으로 발전 가능성을 제시해주세요. 특히 진로 적합성과 학업 개선 방안에 중점을 두세요.",
+                system="당신은 학생 데이터를 분석하는 교육 전문가입니다. 주어진 학생 데이터를 분석하여 학생의 강점, 약점, 진로 적합성 등을 종합적으로 평가해주세요. 항상 한국어로 응답하세요.",
                 messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "user", "content": prompt}
                 ]
             )
-            print("Claude API 응답 수신 완료")
-            return message.content
-        except Exception as e:
-            print(f"Claude API 호출 오류: {str(e)}")
-            return f"AI 분석 중 오류가 발생했습니다: {str(e)}"
+            
+            # 응답 확인 및 텍스트 추출
+            if hasattr(message, 'content') and message.content:
+                # content는 리스트 형태일 수 있으므로 적절히 처리
+                if isinstance(message.content, list):
+                    text_blocks = [block.text for block in message.content if hasattr(block, 'text')]
+                    return '\n'.join(text_blocks)
+                elif hasattr(message.content, 'text'):
+                    return message.content.text
+                else:
+                    # 예상치 못한 응답 구조인 경우
+                    return str(message.content)
+            else:
+                return "API 응답에서 내용을 찾을 수 없습니다."
+                
+        except Exception as api_error:
+            logging.error(f"Claude API 호출 오류: {str(api_error)}")
+            return f"AI 분석 중 API 오류가 발생했습니다: {str(api_error)}"
+            
     except Exception as e:
-        print(f"AI 분석 준비 중 오류 발생: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return f"AI 분석 준비 중 오류가 발생했습니다: {str(e)}"
+        logging.error(f"분석 오류: {str(e)}")
+        return f"AI 분석 중 오류가 발생했습니다: {str(e)}"
 
 def create_subject_radar_chart(subject_data: Dict[str, Any]) -> go.Figure:
     """교과별 성취도를 레이더 차트로 시각화합니다."""
@@ -194,7 +192,7 @@ def create_activity_timeline(activities: List[Dict[str, Any]]) -> go.Figure:
 def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
     """학생 생활기록부를 분석하여 종합적인 결과를 반환합니다."""
     try:
-        analysis_result = analyze_with_claude(student_data)
+        analysis_result = analyze_with_claude(create_analysis_prompt(student_data))
         return {"analysis": analysis_result}
         
     except Exception as e:

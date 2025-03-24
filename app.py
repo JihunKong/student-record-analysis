@@ -302,46 +302,66 @@ def main():
                     st.markdown('<h2 class="section-header">📈 성적 분석</h2>', unsafe_allow_html=True)
                     
                     # 과목별 비교 차트 - 학점수와 등급만 사용
-                    subjects = ['국어', '수학', '영어', '사회', '과학']
+                    main_subjects = ['국어', '영어', '수학', '사회', '과학']
+                    all_subjects = ['국어', '영어', '수학', '사회', '과학', '한국사', '정보']
                     
                     # 안전하게 데이터 접근
                     semester1_grades = []
                     semester2_grades = []
+                    semester1_credits = []
+                    semester2_credits = []
                     
-                    for subject in subjects:
+                    # 메인 과목 데이터 (5과목)
+                    for subject in main_subjects:
                         # 1학기 데이터
                         if 'semester1' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester1']:
                             if subject in student_info['academic_records']['semester1']['grades']:
-                                # 등급만 사용
                                 semester1_grades.append(student_info['academic_records']['semester1']['grades'][subject]['rank'])
+                                if 'credit' in student_info['academic_records']['semester1']['grades'][subject]:
+                                    semester1_credits.append(student_info['academic_records']['semester1']['grades'][subject]['credit'])
+                                else:
+                                    semester1_credits.append(1)  # 기본 학점수 1
                             else:
                                 semester1_grades.append(0)
+                                semester1_credits.append(0)
                         else:
                             semester1_grades.append(0)
+                            semester1_credits.append(0)
                         
                         # 2학기 데이터
                         if 'semester2' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester2']:
                             if subject in student_info['academic_records']['semester2']['grades']:
-                                # 등급만 사용
                                 semester2_grades.append(student_info['academic_records']['semester2']['grades'][subject]['rank'])
+                                if 'credit' in student_info['academic_records']['semester2']['grades'][subject]:
+                                    semester2_credits.append(student_info['academic_records']['semester2']['grades'][subject]['credit'])
+                                else:
+                                    semester2_credits.append(1)  # 기본 학점수 1
                             else:
                                 semester2_grades.append(0)
+                                semester2_credits.append(0)
                         else:
                             semester2_grades.append(0)
+                            semester2_credits.append(0)
                     
                     # 0인 값은 제외하고 표시할 과목과 데이터 준비
                     valid_subjects = []
                     valid_sem1_grades = []
                     valid_sem2_grades = []
+                    valid_sem1_credits = []
+                    valid_sem2_credits = []
                     
-                    for i, subject in enumerate(subjects):
+                    for i, subject in enumerate(main_subjects):
                         if semester1_grades[i] > 0 or semester2_grades[i] > 0:
                             valid_subjects.append(subject)
                             valid_sem1_grades.append(semester1_grades[i])
                             valid_sem2_grades.append(semester2_grades[i])
+                            valid_sem1_credits.append(semester1_credits[i])
+                            valid_sem2_credits.append(semester2_credits[i])
                     
                     # 차트 생성 - 등급을 그래프 높이로 변환 (1등급=9칸, 9등급=1칸)
                     if valid_subjects:
+                        # 1. 등급 차트
+                        st.subheader("과목별 등급 비교")
                         fig = go.Figure()
                         
                         # 등급을 높이로 변환 (1등급=9, 9등급=1)
@@ -391,38 +411,137 @@ def main():
                         )
                         
                         st.plotly_chart(fig, use_container_width=True)
+                        
+                        # 2. 학점 가중치를 반영한 성적 차트
+                        st.subheader("학점 가중치를 반영한 성적")
+                        
+                        # 등급과 학점을 곱한 가중 점수 계산 (학점이 높고 등급이 좋을수록(낮을수록) 점수가 높음)
+                        sem1_weighted = [(10 - g) * c if g > 0 and c > 0 else 0 for g, c in zip(valid_sem1_grades, valid_sem1_credits)]
+                        sem2_weighted = [(10 - g) * c if g > 0 and c > 0 else 0 for g, c in zip(valid_sem2_grades, valid_sem2_credits)]
+                        
+                        fig_weighted = go.Figure()
+                        
+                        # 1학기 데이터
+                        if any(score > 0 for score in sem1_weighted):
+                            fig_weighted.add_trace(go.Bar(
+                                name='1학기', 
+                                x=valid_subjects, 
+                                y=sem1_weighted,
+                                text=[f"{s:.1f}" if s > 0 else "N/A" for s in sem1_weighted],
+                                textposition='auto'
+                            ))
+                        
+                        # 2학기 데이터
+                        if any(score > 0 for score in sem2_weighted):
+                            fig_weighted.add_trace(go.Bar(
+                                name='2학기', 
+                                x=valid_subjects, 
+                                y=sem2_weighted,
+                                text=[f"{s:.1f}" if s > 0 else "N/A" for s in sem2_weighted],
+                                textposition='auto'
+                            ))
+                        
+                        fig_weighted.update_layout(
+                            title="과목별 학점 가중치 반영 성적 (막대가 높을수록 좋은 점수)",
+                            barmode='group',
+                            yaxis=dict(
+                                title="가중 점수",
+                            ),
+                            legend=dict(
+                                orientation="h",
+                                yanchor="bottom",
+                                y=1.02,
+                                xanchor="right",
+                                x=1
+                            ),
+                            margin=dict(l=20, r=20, t=40, b=20),
+                            height=400
+                        )
+                        
+                        st.plotly_chart(fig_weighted, use_container_width=True)
                     else:
                         st.info("과목별 등급 데이터가 없습니다.")
                     
-                    # 학기별 평균 등급 계산
-                    semester1_avg = 0
-                    semester2_avg = 0
+                    # 학기별 평균 등급 계산 - 5과목, 7과목 모두 계산
+                    # 5과목 평균 (국어, 영어, 수학, 사회, 과학)
+                    semester1_avg_5 = 0
+                    semester2_avg_5 = 0
                     
-                    sem1_grades = [g for g in valid_sem1_grades if g > 0]
-                    sem2_grades = [g for g in valid_sem2_grades if g > 0]
+                    sem1_grades_5 = [g for g in valid_sem1_grades if g > 0]
+                    sem2_grades_5 = [g for g in valid_sem2_grades if g > 0]
                     
-                    if sem1_grades:
-                        semester1_avg = sum(sem1_grades) / len(sem1_grades)
+                    if sem1_grades_5:
+                        semester1_avg_5 = sum(sem1_grades_5) / len(sem1_grades_5)
                     
-                    if sem2_grades:
-                        semester2_avg = sum(sem2_grades) / len(sem2_grades)
+                    if sem2_grades_5:
+                        semester2_avg_5 = sum(sem2_grades_5) / len(sem2_grades_5)
+                    
+                    # 7과목 평균 (국어, 영어, 수학, 사회, 과학, 한국사, 정보)
+                    semester1_avg_7 = 0
+                    semester2_avg_7 = 0
+                    
+                    # 7과목 데이터 수집
+                    all_sem1_grades = []
+                    all_sem2_grades = []
+                    
+                    for subject in all_subjects:
+                        # 1학기 등급
+                        if 'semester1' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester1']:
+                            if subject in student_info['academic_records']['semester1']['grades']:
+                                grade = student_info['academic_records']['semester1']['grades'][subject]['rank']
+                                if grade > 0:
+                                    all_sem1_grades.append(grade)
+                        
+                        # 2학기 등급
+                        if 'semester2' in student_info['academic_records'] and 'grades' in student_info['academic_records']['semester2']:
+                            if subject in student_info['academic_records']['semester2']['grades']:
+                                grade = student_info['academic_records']['semester2']['grades'][subject]['rank']
+                                if grade > 0:
+                                    all_sem2_grades.append(grade)
+                    
+                    if all_sem1_grades:
+                        semester1_avg_7 = sum(all_sem1_grades) / len(all_sem1_grades)
+                    
+                    if all_sem2_grades:
+                        semester2_avg_7 = sum(all_sem2_grades) / len(all_sem2_grades)
                     
                     # 학기별 평균 표시
+                    st.subheader("학기별 평균 등급")
+                    
+                    # 5과목 평균 표시
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        if semester1_avg > 0:
-                            st.metric("1학기 평균 등급", f"{semester1_avg:.2f}")
+                        if semester1_avg_5 > 0:
+                            st.metric("1학기 평균 등급 (5과목)", f"{semester1_avg_5:.2f}")
                         else:
-                            st.metric("1학기 평균 등급", "N/A")
+                            st.metric("1학기 평균 등급 (5과목)", "N/A")
                     
                     with col2:
-                        if semester2_avg > 0:
-                            delta = semester1_avg - semester2_avg if semester1_avg > 0 else None
+                        if semester2_avg_5 > 0:
+                            delta = semester1_avg_5 - semester2_avg_5 if semester1_avg_5 > 0 else None
                             delta_color = "inverse" if delta and delta > 0 else "normal"  # 등급은 낮을수록 좋으므로 색상 반전
-                            st.metric("2학기 평균 등급", f"{semester2_avg:.2f}", delta=f"{delta:.2f}" if delta else None, delta_color=delta_color)
+                            st.metric("2학기 평균 등급 (5과목)", f"{semester2_avg_5:.2f}", delta=f"{delta:.2f}" if delta else None, delta_color=delta_color)
                         else:
-                            st.metric("2학기 평균 등급", "N/A")
+                            st.metric("2학기 평균 등급 (5과목)", "N/A")
+                    
+                    # 7과목 평균 표시
+                    st.markdown("##### 참고: 7과목 평균 (국어, 영어, 수학, 사회, 과학, 한국사, 정보)")
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        if semester1_avg_7 > 0:
+                            st.metric("1학기 평균 등급 (7과목)", f"{semester1_avg_7:.2f}")
+                        else:
+                            st.metric("1학기 평균 등급 (7과목)", "N/A")
+                    
+                    with col2:
+                        if semester2_avg_7 > 0:
+                            delta = semester1_avg_7 - semester2_avg_7 if semester1_avg_7 > 0 else None
+                            delta_color = "inverse" if delta and delta > 0 else "normal"
+                            st.metric("2학기 평균 등급 (7과목)", f"{semester2_avg_7:.2f}", delta=f"{delta:.2f}" if delta else None, delta_color=delta_color)
+                        else:
+                            st.metric("2학기 평균 등급 (7과목)", "N/A")
                 
                 with tab3:
                     st.markdown('<h2 class="section-header">📋 세부능력 및 특기사항</h2>', unsafe_allow_html=True)
