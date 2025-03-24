@@ -175,15 +175,22 @@ with st.sidebar:
 if uploaded_file:
     try:
         # CSV 파일 처리
-        df = process_csv_file(uploaded_file)
-        student_info = extract_student_info(df)
+        special_notes, grades = process_csv_file(uploaded_file)
+        student_info = extract_student_info(special_notes, grades)
         
         # 탭 생성
         tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
         
         with tab1:
             st.markdown('<h2 class="section-header">📊 원본 데이터</h2>', unsafe_allow_html=True)
-            st.dataframe(df)
+            
+            # 세특 데이터 표시
+            st.markdown("### 세부능력 및 특기사항")
+            st.dataframe(special_notes)
+            
+            # 성적 데이터 표시
+            st.markdown("### 성적 데이터")
+            st.dataframe(grades)
         
         with tab2:
             st.markdown('<h2 class="section-header">📈 성적 분석</h2>', unsafe_allow_html=True)
