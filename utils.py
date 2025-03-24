@@ -9,61 +9,68 @@ import plotly.graph_objects as go
 import plotly.express as px
 from typing import Dict, List, Any
 
-def preprocess_csv(uploaded_file) -> pd.DataFrame:
-    """CSV 파일을 전처리합니다."""
+def preprocess_csv(file):
+    """CSV 파일을 전처리하여 DataFrame으로 변환합니다."""
     try:
-        # UTF-8로 먼저 시도
-        df = pd.read_csv(uploaded_file, encoding='utf-8', skiprows=1)
-    except UnicodeDecodeError:
-        # UTF-8 실패시 CP949로 시도
-        df = pd.read_csv(uploaded_file, encoding='cp949', skiprows=1)
-    
-    # 빈 행 제거
-    df = df.dropna(how='all')
-    
-    # 컬럼명에서 공백 제거
-    df.columns = df.columns.str.strip()
-    
-    # 필수 컬럼 목록
-    required_columns = ['국어', '수학', '영어', '한국사', '사회', '과학', '과학탐구실험', '정보', '체육', '음악', '미술']
-    
-    # 실제 컬럼 목록
-    actual_columns = [col for col in df.columns if col in required_columns]
-    
-    # 필수 컬럼이 모두 있는지 확인
-    if len(actual_columns) != len(required_columns):
-        missing_columns = [col for col in required_columns if col not in actual_columns]
-        raise ValueError(f"다음 필수 컬럼이 누락되었습니다: {', '.join(missing_columns)}")
-    
-    return df
+        # CSV 파일 읽기
+        df = pd.read_csv(file, encoding='utf-8')
+        
+        # 빈 열 제거
+        df = df.dropna(axis=1, how='all')
+        
+        # 첫 번째 행을 컬럼명으로 설정
+        df.columns = df.iloc[0]
+        df = df.iloc[1:]
+        
+        # 인덱스 재설정
+        df = df.reset_index(drop=True)
+        
+        return df
+    except Exception as e:
+        raise Exception(f"CSV 파일 전처리 중 오류 발생: {str(e)}")
 
 def extract_student_info(df):
-    """학생 정보를 추출합니다."""
-    student_info = {
-        'academic_performance': {},
-        'activities': {},
-        'grades': {}
-    }
-    
-    # 교과별 성취도 추출
-    subjects = ['국어', '수학', '영어', '한국사', '사회', '과학', '과학탐구실험', '정보', '체육', '음악', '미술']
-    for subject in subjects:
-        if subject in df.columns:
-            student_info['academic_performance'][subject] = df[subject].iloc[0]
-    
-    # 활동 내역 추출
-    activities = ['자율', '동아리', '진로', '행특', '개인']
-    for activity in activities:
-        if activity in df.columns:
-            student_info['activities'][activity] = df[activity].iloc[0]
-    
-    # 학기별 성적 추출
-    if '학기' in df.columns and '교과' in df.columns and '과목' in df.columns:
-        grades_data = df[['학기', '교과', '과목', '원점수/과목평균\n (표준편차)', '성취도\n (수강자수)', '석차등급']].copy()
-        grades_data = grades_data.dropna(subset=['학기', '교과', '과목'])
-        student_info['grades'] = grades_data.to_dict('records')
-    
-    return student_info
+    """DataFrame에서 학생 정보를 추출합니다."""
+    try:
+        student_info = {}
+        
+        # 교과별 세부능력 및 특기사항
+        academic_performance = {}
+        for subject in ['국어', '수학', '영어', '한국사', '사회', '과학', '과학탐구실험', '정보', '체육', '음악', '미술']:
+            if subject in df.columns:
+                content = df[subject].iloc[0]
+                if pd.notna(content):
+                    academic_performance[subject] = content
+        
+        # 활동 내역
+        activities = {}
+        for activity_type in ['자율', '동아리', '진로', '행특', '개인']:
+            if activity_type in df.columns:
+                content = df[activity_type].iloc[0]
+                if pd.notna(content):
+                    activities[activity_type] = content
+        
+        # 진로 희망
+        career_aspiration = ""
+        if '진로희망' in df.columns:
+            career_aspiration = df['진로희망'].iloc[0]
+        
+        # 학기별 성적
+        grades = []
+        grade_data = df.iloc[1:].copy()  # 성적 데이터는 두 번째 행부터 시작
+        if not grade_data.empty:
+            grade_data.columns = ['학기', '교과', '과목', '학점수', '원점수/과목평균', '성취도', '석차등급']
+            grades = grade_data.to_dict('records')
+        
+        # 추출한 정보를 student_info에 저장
+        student_info['academic_performance'] = academic_performance
+        student_info['activities'] = activities
+        student_info['career_aspiration'] = career_aspiration
+        student_info['grades'] = grades
+        
+        return student_info
+    except Exception as e:
+        raise Exception(f"학생 정보 추출 중 오류 발생: {str(e)}")
 
 def create_downloadable_report(content: Dict[str, Any], filename: str = "분석_보고서.md") -> str:
     """다운로드 가능한 보고서를 생성합니다."""
