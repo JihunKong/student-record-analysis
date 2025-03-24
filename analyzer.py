@@ -285,25 +285,25 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
     try:
         # 기본 정보 추출
         basic_info = {
-            "학년": student_data.get("학년", ""),
-            "반": student_data.get("반", ""),
-            "번호": student_data.get("번호", ""),
-            "이름": student_data.get("이름", ""),
-            "진로희망": student_data.get("진로희망", "")
+            "학년": str(student_data.get("학년", "")),
+            "반": str(student_data.get("반", "")),
+            "번호": str(student_data.get("번호", "")),
+            "이름": str(student_data.get("이름", "")),
+            "진로희망": str(student_data.get("진로희망", ""))
         }
         
         # 교과별 성취도 분석
         academic_performance = {}
         for subject in ["국어", "수학", "영어", "한국사", "사회", "과학", "과학탐구실험", "정보", "체육", "음악", "미술"]:
             if subject in student_data:
-                academic_performance[subject] = student_data[subject]
+                academic_performance[subject] = str(student_data[subject]) if pd.notna(student_data[subject]) else ""
         
         # 활동 내역 분석
         activities = {}
         activity_types = ["자율", "동아리", "진로", "행특", "개인"]
         for activity_type in activity_types:
             if activity_type in student_data:
-                activities[activity_type] = student_data[activity_type]
+                activities[activity_type] = str(student_data[activity_type]) if pd.notna(student_data[activity_type]) else ""
         
         # 분석 결과 구성
         analysis_results = {
@@ -356,5 +356,5 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
         return analysis_results
         
     except Exception as e:
-        print(f"분석 중 오류 발생: {str(e)}")
+        print(f"분석 중 오류 발생: {str(e)}")  # 디버깅을 위한 출력 추가
         return {"error": str(e)} 

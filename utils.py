@@ -102,7 +102,8 @@ def extract_student_info(df_tuple):
             if subject in main_data.columns:
                 content = main_data[main_data.columns[list(main_data.columns).index(subject)]].iloc[0]
                 if pd.notna(content):
-                    academic_performance[subject] = convert_to_python_type(content)
+                    # 문자열로 변환하여 저장
+                    academic_performance[subject] = str(content) if not isinstance(content, str) else content
         
         # 활동 내역
         activities = {}
@@ -112,13 +113,14 @@ def extract_student_info(df_tuple):
             if activity_type in main_data.columns:
                 content = main_data[main_data.columns[list(main_data.columns).index(activity_type)]].iloc[0]
                 if pd.notna(content):
-                    activities[activity_type] = convert_to_python_type(content)
+                    # 문자열로 변환하여 저장
+                    activities[activity_type] = str(content) if not isinstance(content, str) else content
         
         # 진로 희망
         career_aspiration = ""
         if '진로희망' in main_data.columns:
             career_aspiration = main_data[main_data.columns[list(main_data.columns).index('진로희망')]].iloc[0]
-            career_aspiration = convert_to_python_type(career_aspiration) if pd.notna(career_aspiration) else ""
+            career_aspiration = str(career_aspiration) if pd.notna(career_aspiration) else ""
         
         # 학기별 성적
         grades = []
@@ -130,13 +132,13 @@ def extract_student_info(df_tuple):
             for _, row in grade_data.iterrows():
                 if pd.notna(row['학 기']):  # 유효한 행만 처리
                     grade_entry = {
-                        '학기': convert_to_python_type(row['학 기']),
-                        '교과': convert_to_python_type(row['교 과']),
-                        '과목': convert_to_python_type(row['과 목']),
-                        '학점수': convert_to_python_type(row['학점수']),
-                        '원점수/과목평균': convert_to_python_type(row['원점수/과목평균 (표준편차)']),
-                        '성취도': convert_to_python_type(row['성취도 (수강자수)']),
-                        '석차등급': convert_to_python_type(row['석차등급']) if '석차등급' in row else None
+                        '학기': str(row['학 기']),
+                        '교과': str(row['교 과']),
+                        '과목': str(row['과 목']),
+                        '학점수': str(row['학점수']) if pd.notna(row['학점수']) else "",
+                        '원점수/과목평균': str(row['원점수/과목평균 (표준편차)']) if pd.notna(row['원점수/과목평균 (표준편차)']) else "",
+                        '성취도': str(row['성취도 (수강자수)']) if pd.notna(row['성취도 (수강자수)']) else "",
+                        '석차등급': str(row['석차등급']) if '석차등급' in row and pd.notna(row['석차등급']) else ""
                     }
                     grades.append(grade_entry)
         
@@ -149,6 +151,7 @@ def extract_student_info(df_tuple):
         return student_info
         
     except Exception as e:
+        print(f"학생 정보 추출 중 오류 발생: {str(e)}")  # 디버깅을 위한 출력 추가
         raise Exception(f"학생 정보 추출 중 오류 발생: {str(e)}")
 
 def create_downloadable_report(content: Dict[str, Any], filename: str = "분석_보고서.md") -> str:
