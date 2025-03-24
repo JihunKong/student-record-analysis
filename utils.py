@@ -87,11 +87,9 @@ def convert_to_python_type(obj):
         return [convert_to_python_type(item) for item in obj]
     return obj
 
-def extract_student_info(df_tuple):
+def extract_student_info(df):
     """DataFrame에서 학생 정보를 추출합니다."""
     try:
-        main_data, grade_data = df_tuple
-        
         student_info = {}
         
         # 교과별 세부능력 및 특기사항
@@ -99,54 +97,55 @@ def extract_student_info(df_tuple):
         subjects = ['국어', '수학', '영어', '한국사', '사회', '과학', '과학탐구실험', '정보', '체육', '음악', '미술']
         
         for subject in subjects:
-            if subject in main_data.columns:
-                content = main_data[main_data.columns[list(main_data.columns).index(subject)]].iloc[0]
+            if subject in df.columns:
+                content = df[subject].iloc[0]
                 if pd.notna(content):
-                    # 문자열로 변환하여 저장
-                    academic_performance[subject] = str(content) if not isinstance(content, str) else content
+                    academic_performance[subject] = str(content)
         
         # 활동 내역
         activities = {}
         activity_types = ['자율', '동아리', '진로', '행특', '개인']
         
         for activity_type in activity_types:
-            if activity_type in main_data.columns:
-                content = main_data[main_data.columns[list(main_data.columns).index(activity_type)]].iloc[0]
+            if activity_type in df.columns:
+                content = df[activity_type].iloc[0]
                 if pd.notna(content):
-                    # 문자열로 변환하여 저장
-                    activities[activity_type] = str(content) if not isinstance(content, str) else content
+                    activities[activity_type] = str(content)
         
         # 진로 희망
         career_aspiration = ""
-        if '진로희망' in main_data.columns:
-            career_aspiration = main_data[main_data.columns[list(main_data.columns).index('진로희망')]].iloc[0]
+        if '진로희망' in df.columns:
+            career_aspiration = df['진로희망'].iloc[0]
             career_aspiration = str(career_aspiration) if pd.notna(career_aspiration) else ""
         
-        # 학기별 성적
+        # 성적 데이터 섹션 찾기
         grades = []
-        if not grade_data.empty:
-            # 컬럼명에서 개행 문자 제거
-            grade_data.columns = [col.replace('\n', ' ').strip() for col in grade_data.columns]
+        grade_section = df[df.iloc[:, 0] == '학 기'].index
+        if len(grade_section) > 0:
+            grade_data = df.iloc[grade_section[0]:]
+            grade_columns = ['학 기', '교 과', '과 목', '학점수', '원점수/과목평균\n (표준편차)', '성취도\n (수강자수)', '석차등급']
             
-            # 성적 데이터 정리
             for _, row in grade_data.iterrows():
-                if pd.notna(row['학 기']):  # 유효한 행만 처리
+                if pd.notna(row.iloc[0]):  # 학기 정보가 있는 행만 처리
                     grade_entry = {
-                        '학기': str(row['학 기']),
-                        '교과': str(row['교 과']),
-                        '과목': str(row['과 목']),
-                        '학점수': str(row['학점수']) if pd.notna(row['학점수']) else "",
-                        '원점수/과목평균': str(row['원점수/과목평균 (표준편차)']) if pd.notna(row['원점수/과목평균 (표준편차)']) else "",
-                        '성취도': str(row['성취도 (수강자수)']) if pd.notna(row['성취도 (수강자수)']) else "",
-                        '석차등급': str(row['석차등급']) if '석차등급' in row and pd.notna(row['석차등급']) else ""
+                        'semester': str(row.iloc[0]),
+                        'subject': str(row.iloc[2]),
+                        'score': str(row.iloc[4].split('/')[0]) if pd.notna(row.iloc[4]) else "0",
+                        'weight': str(row.iloc[3]) if pd.notna(row.iloc[3]) else "1"
                     }
                     grades.append(grade_entry)
         
-        # 추출한 정보를 student_info에 저장
+        # 평균 계산
+        first_semester = [float(g['score']) * float(g['weight']) for g in grades if g['semester'] == '1']
+        second_semester = [float(g['score']) * float(g['weight']) for g in grades if g['semester'] == '2']
+        
         student_info['academic_performance'] = academic_performance
         student_info['activities'] = activities
         student_info['career_aspiration'] = career_aspiration
         student_info['grades'] = grades
+        student_info['first_semester_weighted_average'] = sum(first_semester) / len(first_semester) if first_semester else 0
+        student_info['second_semester_weighted_average'] = sum(second_semester) / len(second_semester) if second_semester else 0
+        student_info['total_weighted_average'] = (student_info['first_semester_weighted_average'] + student_info['second_semester_weighted_average']) / 2
         
         return student_info
         
