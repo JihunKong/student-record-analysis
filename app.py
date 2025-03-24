@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import google.generativeai as genai
 
 # 로컬 모듈 임포트
 from utils import preprocess_csv, extract_student_info, create_downloadable_report, plot_timeline, create_radar_chart
@@ -22,10 +23,14 @@ st.set_page_config(
     layout="wide"
 )
 
-# GitHub 환경변수 확인
-if not os.getenv("GEMINI_API_KEY"):
-    st.error("GitHub 환경변수에 GEMINI_API_KEY가 설정되지 않았습니다.")
+# Gemini API 설정
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+if not GOOGLE_API_KEY:
+    st.error("GOOGLE_API_KEY 환경 변수가 설정되지 않았습니다.")
     st.stop()
+
+genai.configure(api_key=GOOGLE_API_KEY)
+model = genai.GenerativeModel('gemini-pro')
 
 # 앱 타이틀
 st.title("📚 생활기록부 분석 및 시각화 자동화 프로그램")
@@ -91,16 +96,17 @@ if menu == "파일 업로드":
             st.subheader("교과별 성취도")
             academic_performance = student_info['academic_performance']
             if academic_performance:
-                performance_df = pd.DataFrame(list(academic_performance.items()), columns=['과목', '활동 내용'])
-                st.dataframe(performance_df)
+                for subject, content in academic_performance.items():
+                    with st.expander(subject):
+                        st.write(content)
             
             # 활동 내역 표시
             st.subheader("활동 내역")
             activities = student_info['activities']
             if activities:
                 for activity, content in activities.items():
-                    st.write(f"**{activity}**")
-                    st.write(content)
+                    with st.expander(activity):
+                        st.write(content)
             
             # 학기별 성적 표시
             st.subheader("학기별 성적")
@@ -112,9 +118,13 @@ if menu == "파일 업로드":
             # 분석 시작 버튼
             if st.button("분석 시작"):
                 with st.spinner("분석 중..."):
-                    analysis_results = analyze_student_record(student_info)
-                    st.session_state.analysis_results = analysis_results
-                    st.success("분석이 완료되었습니다!")
+                    try:
+                        analysis_results = analyze_student_record(student_info)
+                        st.session_state.analysis_results = analysis_results
+                        st.success("분석이 완료되었습니다!")
+                    except Exception as e:
+                        st.error(f"분석 중 오류가 발생했습니다: {str(e)}")
+                        st.stop()
         
         except Exception as e:
             st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
