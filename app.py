@@ -206,19 +206,34 @@ def main():
         try:
             st.info("파일을 처리 중입니다. 잠시만 기다려주세요...")
             
-            # 파일 처리 및 학생 정보 추출
-            special_notes, grades = process_csv_file(uploaded_file)
+            # 파일을 임시 파일로 저장하고 경로 얻기
+            temp_file_path = "temp_uploaded_file.csv"
+            with open(temp_file_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
             
-            if special_notes.empty and grades.empty:
+            # 파일 처리 및 학생 정보 추출
+            student_data = process_csv_file(temp_file_path)
+            
+            if not student_data:
                 st.error("파일 처리에 실패했습니다. 파일 형식을 확인해주세요.")
                 st.stop()
             
             # 디버깅 정보
             st.write("파일 처리 결과")
-            st.write(f"- 세특 데이터: {len(special_notes)} 행, {len(special_notes.columns)} 열")
-            st.write(f"- 성적 데이터: {len(grades)} 행, {len(grades.columns)} 열")
             
-            student_info = extract_student_info(special_notes, grades)
+            if 'special_notes' in student_data and 'subjects' in student_data['special_notes']:
+                st.write(f"- 세특 데이터: {len(student_data['special_notes']['subjects'])} 과목")
+            else:
+                st.write("- 세특 데이터: 없음")
+                
+            if 'academic_records' in student_data:
+                semester1_count = len(student_data['academic_records'].get('semester1', {}).get('grades', {}))
+                semester2_count = len(student_data['academic_records'].get('semester2', {}).get('grades', {}))
+                st.write(f"- 성적 데이터: 1학기 {semester1_count}과목, 2학기 {semester2_count}과목")
+            else:
+                st.write("- 성적 데이터: 없음")
+            
+            student_info = student_data  # 더 이상 별도 추출이 필요 없음
             
             # 학생 정보가 비어있으면 예외 발생
             if not student_info or not student_info.get('special_notes', {}).get('subjects'):
@@ -232,7 +247,27 @@ def main():
                     
                     # 세특 데이터 표시
                     st.markdown("### 세부능력 및 특기사항")
-                    st.dataframe(special_notes)
+                    
+                    # 과목별 세특 표시
+                    if 'subjects' in student_info['special_notes'] and student_info['special_notes']['subjects']:
+                        subjects_df = pd.DataFrame({
+                            '과목': list(student_info['special_notes']['subjects'].keys()),
+                            '내용': list(student_info['special_notes']['subjects'].values())
+                        })
+                        st.dataframe(subjects_df, use_container_width=True)
+                    else:
+                        st.info("과목별 세특 데이터가 없습니다.")
+                    
+                    # 활동별 세특 표시
+                    if 'activities' in student_info['special_notes'] and student_info['special_notes']['activities']:
+                        st.markdown("### 활동별 특기사항")
+                        activities_df = pd.DataFrame({
+                            '활동': list(student_info['special_notes']['activities'].keys()),
+                            '내용': list(student_info['special_notes']['activities'].values())
+                        })
+                        st.dataframe(activities_df, use_container_width=True)
+                    else:
+                        st.info("활동별 세특 데이터가 없습니다.")
                     
                     # 성적 데이터 표시
                     st.markdown("### 성적 데이터")
