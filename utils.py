@@ -538,50 +538,108 @@ def process_csv_file(file) -> Tuple[pd.DataFrame, pd.DataFrame]:
         if df is None:
             raise Exception("모든 인코딩으로 파일 읽기 실패")
         
-        # 빈 행과 열 제거
-        df = df.dropna(how='all')
-        df = df.dropna(axis=1, how='all')
+        # 파일 구조 확인
+        print(f"CSV 파일 총 행 수: {len(df)}")
+        print(f"CSV 파일 컬럼: {df.columns.tolist()}")
         
-        # 데이터 확인용 디버깅 출력
-        print(f"데이터프레임 컬럼: {df.columns.tolist()}")
-        print(f"데이터프레임 행 수: {len(df)}")
+        # 파일이 예상한 구조인지 확인 (첫 번째 행이 이미 헤더로 사용됨)
+        # 세특 데이터: 첫 번째 행부터 시작하여 빈 행 이전까지
+        # 성적 데이터: 빈 행 다음부터 시작하며, 첫 행은 성적 데이터의 헤더
         
-        # 성적 데이터 부분 찾기 (학기 열이 있는 행부터)
-        grade_rows = []
-        for i, row in df.iterrows():
-            for col in row.index:
-                if pd.notna(row[col]) and isinstance(row[col], str) and '학기' in row[col]:
-                    grade_rows = list(range(i, len(df)))
-                    print(f"성적 데이터 시작 행 발견: {i}")
-                    break
-            if grade_rows:
-                break
+        # 빈 행 찾기 (모든 열이 NaN인 행)
+        empty_rows = df.isna().all(axis=1)
+        empty_row_indices = empty_rows[empty_rows].index.tolist()
         
-        if not grade_rows:
-            # 성적 데이터를 찾을 수 없는 경우
-            print("성적 데이터를 찾을 수 없음, 전체를 세특 데이터로 처리")
-            special_notes = df.copy()
-            grades = pd.DataFrame()
-        else:
-            # 세특 데이터와 성적 데이터 분리
-            special_notes = df.iloc[:grade_rows[0]].copy() if grade_rows[0] > 0 else pd.DataFrame()
+        if empty_row_indices:
+            print(f"빈 행 발견: {empty_row_indices}")
+            # 첫 번째 빈 행을 기준으로 분리
+            first_empty_row = empty_row_indices[0]
             
-            # 성적 데이터 처리
-            grade_header = df.iloc[grade_rows[0]]
-            grade_data = df.iloc[grade_rows[0]+1:].copy()
+            # 세특 데이터 (1행부터 빈 행 전까지)
+            special_notes = df.iloc[:first_empty_row].copy()
             
-            # 컬럼 이름 설정
-            column_names = []
-            for col in grade_header.index:
-                if pd.notna(grade_header[col]):
-                    column_names.append(str(grade_header[col]))
+            # 성적 데이터 (빈 행 다음 행부터)
+            # 이 행이 '학 기,과 목,학점수,...' 등의 헤더를 포함하는지 확인
+            if first_empty_row + 1 < len(df):
+                # 성적 데이터의 헤더 행
+                grade_header_row = first_empty_row + 1
+                
+                # 성적 헤더 확인 - '학 기' 또는 '학기'가 포함된 행
+                header_check = False
+                for col in df.iloc[grade_header_row]:
+                    if pd.notna(col) and ('학 기' in str(col) or '학기' in str(col)):
+                        header_check = True
+                        break
+                
+                if header_check:
+                    print(f"성적 데이터 헤더 행 발견: {grade_header_row}")
+                    # 헤더를 기반으로 데이터프레임 생성
+                    grade_header = df.iloc[grade_header_row]
+                    
+                    # 헤더 이름이 NaN이면 원래 컬럼 이름 유지
+                    column_names = []
+                    for i, col in enumerate(grade_header):
+                        if pd.notna(col):
+                            column_names.append(str(col))
+                        else:
+                            column_names.append(df.columns[i])
+                    
+                    # 성적 데이터 (헤더 다음 행부터)
+                    grade_data = df.iloc[grade_header_row+1:].copy()
+                    grades = pd.DataFrame(grade_data.values, columns=column_names)
+                    print(f"성적 데이터 추출 성공: {len(grades)} 행")
                 else:
-                    column_names.append(col)
+                    print("성적 데이터 헤더를 찾을 수 없음")
+                    grades = pd.DataFrame()
+            else:
+                print("성적 데이터 섹션을 찾을 수 없음")
+                grades = pd.DataFrame()
+        else:
+            # 빈 행이 없는 경우 - 파일 구조가 예상과 다름
+            print("빈 행을 찾을 수 없어 CSV 구조를 다른 방식으로 분석합니다.")
             
-            grades = pd.DataFrame(grade_data.values, columns=column_names)
+            # 학기 열이 있는 행 찾기 (성적 데이터 시작점)
+            grade_start_row = -1
+            for i, row in df.iterrows():
+                for col in row.index:
+                    if pd.notna(row[col]) and isinstance(row[col], str) and ('학 기' in row[col] or '학기' in row[col]):
+                        grade_start_row = i
+                        break
+                if grade_start_row >= 0:
+                    break
             
-            print(f"세특 데이터 행 수: {len(special_notes)}")
-            print(f"성적 데이터 행 수: {len(grades)}")
+            if grade_start_row >= 0:
+                print(f"성적 데이터 시작 행 발견: {grade_start_row}")
+                # 세특 데이터 (1행부터 성적 데이터 시작 행 전까지)
+                if grade_start_row > 0:
+                    special_notes = df.iloc[:grade_start_row].copy()
+                else:
+                    special_notes = pd.DataFrame()
+                
+                # 성적 데이터 헤더 및 데이터
+                grade_header = df.iloc[grade_start_row]
+                
+                # 헤더 이름이 NaN이면 원래 컬럼 이름 유지
+                column_names = []
+                for i, col in enumerate(grade_header):
+                    if pd.notna(col):
+                        column_names.append(str(col))
+                    else:
+                        column_names.append(df.columns[i])
+                
+                # 성적 데이터 (헤더 다음 행부터)
+                grade_data = df.iloc[grade_start_row+1:].copy()
+                grades = pd.DataFrame(grade_data.values, columns=column_names)
+                print(f"성적 데이터 추출 성공: {len(grades)} 행")
+            else:
+                # 어떤 기준도 찾을 수 없는 경우
+                print("성적 데이터 섹션을 찾을 수 없어, 전체를 세특 데이터로 처리")
+                special_notes = df.copy()
+                grades = pd.DataFrame()
+        
+        print(f"세특 데이터: {len(special_notes)} 행, {len(special_notes.columns)} 열")
+        if not grades.empty:
+            print(f"성적 데이터: {len(grades)} 행, {len(grades.columns)} 열")
         
         return special_notes, grades
         
