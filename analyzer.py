@@ -249,7 +249,7 @@ def create_competency_chart(competency_data: Dict[str, Any]) -> go.Figure:
     return fig
 
 def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
-    """학생 생활기록부를 종합적으로 분석합니다."""
+    """학생 생활기록부를 분석하여 종합적인 결과를 반환합니다."""
     try:
         # 기본 정보 추출
         basic_info = {
@@ -264,61 +264,65 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
         academic_performance = {}
         for subject in ["국어", "수학", "영어", "한국사", "사회", "과학", "과학탐구실험", "정보", "체육", "음악", "미술"]:
             if subject in student_data:
-                prompt = f"""
-                다음은 {subject} 과목의 성취도 내용입니다. 
-                이 내용을 바탕으로 학생의 성취 수준과 특징을 분석해주세요.
-                
-                내용: {student_data[subject]}
-                """
-                
-                response = model.generate_content(prompt)
-                academic_performance[subject] = response.text
+                academic_performance[subject] = student_data[subject]
         
         # 활동 내역 분석
         activities = {}
-        for activity_type in ["자율", "동아리", "진로", "행특", "개인"]:
+        activity_types = ["자율", "동아리", "진로", "행특", "개인"]
+        for activity_type in activity_types:
             if activity_type in student_data:
-                prompt = f"""
-                다음은 {activity_type} 활동 내용입니다.
-                이 활동을 통해 보여진 학생의 특성과 역량을 분석해주세요.
-                
-                내용: {student_data[activity_type]}
-                """
-                
-                response = model.generate_content(prompt)
-                activities[activity_type] = response.text
+                activities[activity_type] = student_data[activity_type]
         
-        # 진로 적합성 분석
-        career_prompt = f"""
-        다음은 학생의 진로 희망과 활동 내역입니다.
-        이를 바탕으로 진로 적합성을 분석해주세요.
-        
-        진로 희망: {basic_info["진로희망"]}
-        활동 내역: {json.dumps(activities, ensure_ascii=False)}
-        """
-        
-        career_response = model.generate_content(career_prompt)
-        
-        # 통합 분석 결과 생성
+        # 분석 결과 구성
         analysis_results = {
             "학생_프로필": {
-                "기본_정보": basic_info,
-                "교과별_분석": academic_performance,
-                "활동_분석": activities
+                "기본_정보_요약": f"{basic_info['학년']}학년 {basic_info['반']}반 {basic_info['번호']}번 {basic_info['이름']} 학생",
+                "진로희망": basic_info["진로희망"],
+                "강점": [],
+                "약점": []
             },
-            "진로_적합성": career_response.text
+            "교과_성취도": academic_performance,
+            "활동_내역": activities,
+            "진로_적합성": {
+                "일치도": "",
+                "적합_진로_옵션": []
+            },
+            "학업_발전_전략": {
+                "교과목_분석": {},
+                "권장_전략": []
+            },
+            "진로_로드맵": {
+                "단기_목표": [],
+                "중기_목표": [],
+                "장기_목표": [],
+                "추천_활동": {}
+            }
         }
         
-        # 시각화 데이터 추가
-        analysis_results["시각화"] = {
-            "교과_성취도": create_subject_radar_chart(student_data.get("교과_성취도", {})),
-            "활동_타임라인": create_activity_timeline(student_data.get("활동_내역", [])),
-            "진로_분석": create_career_analysis_chart({"적합_진로_옵션": []}),
-            "학습_스타일": create_learning_style_chart(activities),
-            "핵심_역량": create_competency_chart(activities)
-        }
+        # Gemini API를 통한 분석 수행
+        profile_prompt = create_prompt_for_student_profile(student_data)
+        career_prompt = create_prompt_for_career_analysis(student_data)
+        academic_prompt = create_prompt_for_academic_strategy(student_data)
+        roadmap_prompt = create_prompt_for_career_roadmap(student_data)
+        
+        # 각 분석 수행
+        profile_analysis = analyze_with_gemini(profile_prompt)
+        career_analysis = analyze_with_gemini(career_prompt)
+        academic_analysis = analyze_with_gemini(academic_prompt)
+        roadmap_analysis = analyze_with_gemini(roadmap_prompt)
+        
+        # 분석 결과 통합
+        if "error" not in profile_analysis:
+            analysis_results["학생_프로필"].update(profile_analysis)
+        if "error" not in career_analysis:
+            analysis_results["진로_적합성"].update(career_analysis)
+        if "error" not in academic_analysis:
+            analysis_results["학업_발전_전략"].update(academic_analysis)
+        if "error" not in roadmap_analysis:
+            analysis_results["진로_로드맵"].update(roadmap_analysis)
         
         return analysis_results
         
     except Exception as e:
-        raise Exception(f"분석 중 오류가 발생했습니다: {str(e)}") 
+        print(f"분석 중 오류 발생: {str(e)}")
+        return {"error": str(e)} 
