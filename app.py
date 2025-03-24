@@ -220,6 +220,13 @@ def main():
     st.markdown("""
     <style>
         .block-container {padding: 1rem;}
+        .main-title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #1E3A8A;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
     </style>
     """, unsafe_allow_html=True)
     
@@ -235,11 +242,15 @@ def main():
         st.markdown("---")
         st.markdown("© 2025 학생부 분석기 Made by 공지훈")
     
-    # 탭 생성 - col1에 넣어 항상 표시되도록 함
-    col1 = st.container()
-    with col1:
-        tabs = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
-        tab1, tab2, tab3, tab4 = tabs
+    # 메인 영역에 제목 추가
+    st.markdown("<div class='main-title'>📚 학생부 분석 시스템</div>", unsafe_allow_html=True)
+    
+    # 여백 추가
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # 탭 생성 부분
+    tabs = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
+    tab1, tab2, tab3, tab4 = tabs
     
     # 파일이 업로드되지 않은 경우
     if not uploaded_file:
