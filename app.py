@@ -251,13 +251,9 @@ def main():
     </style>
     """, unsafe_allow_html=True)
     
-    # 제목 스타일 및 레이아웃 수정
-    st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📚 학생부 분석 시스템</h1>", unsafe_allow_html=True)
-    st.markdown("---")
-
     # 사이드바에서 API 키 입력 섹션 제거
     with st.sidebar:
-        st.title("학생부 분석기")
+        st.title("📚 학생부 분석 시스템")
         
         # 파일 업로드 섹션
         st.write("### 파일 업로드")
