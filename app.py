@@ -38,23 +38,14 @@ st.markdown("---")
 
 # 사이드바 설정
 with st.sidebar:
-    st.header("💼 메뉴")
-    menu = st.radio(
-        "메뉴를 선택하세요:",
-        ["파일 업로드", "분석 결과", "도움말"]
-    )
-    
+    st.title("학생 생활기록부 분석기")
     st.markdown("---")
-    st.subheader("🔍 프로그램 정보")
-    st.info(
-        """
-        이 프로그램은 고등학교 생활기록부 CSV 데이터를 분석하여 
-        학생 진로지도, 학업 전략, 학부모 상담 자료를 제공합니다.
-        """
-    )
-    
+    st.markdown("### 사용 방법")
+    st.markdown("1. CSV 파일을 업로드합니다.")
+    st.markdown("2. 분석할 학생을 선택합니다.")
+    st.markdown("3. 분석 결과를 확인합니다.")
     st.markdown("---")
-    st.caption("© 2023 생활기록부 분석기")
+    st.markdown("© 2025 생활기록부 분석기 Made by 공지훈")
 
 # 세션 상태 초기화
 if 'uploaded_file' not in st.session_state:
