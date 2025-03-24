@@ -36,14 +36,13 @@ model = genai.GenerativeModel('gemini-1.5-pro-002')
 st.title("📚 생활기록부 분석 및 시각화 자동화 프로그램")
 st.markdown("---")
 
-# 사이드바 설정
+# 사이드바
 with st.sidebar:
     st.title("학생 생활기록부 분석기")
-    st.markdown("---")
-    st.markdown("### 사용 방법")
-    st.markdown("1. CSV 파일을 업로드합니다.")
-    st.markdown("2. 분석할 학생을 선택합니다.")
-    st.markdown("3. 분석 결과를 확인합니다.")
+    st.write("""
+    이 앱은 학생의 생활기록부 데이터를 분석하여 
+    학생의 특성과 진로 적합성을 파악하는 도구입니다.
+    """)
     st.markdown("---")
     st.markdown("© 2025 생활기록부 분석기 Made by 공지훈")
 
@@ -277,42 +276,6 @@ if uploaded_file is not None:
     
     except Exception as e:
         st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
-
-# 도움말 섹션
-with st.expander("❓ 도움말"):
-    st.subheader("프로그램 사용 방법")
-    st.write(
-        """
-        1. **파일 업로드**: 생활기록부 CSV 파일을 업로드합니다.
-        2. **분석 시작**: 업로드한 파일을 Google Gemini API를 통해 분석합니다.
-        3. **분석 결과**: 분석 결과를 확인하고 필요한 정보를 확인합니다.
-        4. **보고서 다운로드**: 분석 결과를 마크다운 형식으로 다운로드할 수 있습니다.
-        """
-    )
-    
-    st.subheader("CSV 파일 형식")
-    st.write(
-        """
-        분석을 위한 CSV 파일은 다음과 같은 정보를 포함해야 합니다:
-        
-        - 학생의 기본 정보 (학년, 반, 번호, 이름 등)
-        - 학업 성취도 데이터
-        - 활동 내역 및 진로 희망사항
-        - 담임 선생님 의견 및 평가
-        
-        필요한 경우 아래 샘플 CSV 파일을 참조하여 데이터를 준비해주세요.
-        """
-    )
-    
-    st.subheader("자주 묻는 질문")
-    with st.expander("Q: 어떤 형식의 파일을 업로드해야 하나요?"):
-        st.write("A: CSV 형식의 파일만 업로드할 수 있습니다. 엑셀 파일의 경우 CSV 형식으로 저장 후 업로드해주세요.")
-    
-    with st.expander("Q: 분석에 얼마나 시간이 소요되나요?"):
-        st.write("A: 데이터의 양과 현재 서버 상황에 따라 다르지만, 일반적으로 1-3분 정도 소요됩니다.")
-    
-    with st.expander("Q: 개인정보는 안전하게 처리되나요?"):
-        st.write("A: 네, 모든 데이터는 사용자 환경 내에서만 처리되며, 별도의 외부 저장소에 저장되지 않습니다. Google Gemini API 호출 시에는 HTTPS를 통해 보안이 유지됩니다.")
 
 # 앱 실행
 if __name__ == "__main__":
