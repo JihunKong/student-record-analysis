@@ -111,74 +111,78 @@ def create_prompt_for_career_roadmap(student_data: Dict[str, Any]) -> str:
     return prompt
 
 def analyze_with_gemini(prompt: str) -> Dict[str, Any]:
-    """Gemini API를 사용하여 분석을 수행합니다."""
+    """Gemini API를 사용하여 텍스트를 분석합니다."""
     try:
-        response = model.generate_content(prompt)
+        # Gemini 모델 설정
+        model = genai.GenerativeModel('gemini-1.5-pro-002')
         
-        # 응답 텍스트 추출
+        # 프롬프트에 JSON 형식 지정을 명시적으로 추가
+        formatted_prompt = f"""
+        다음 학생 생활기록부 데이터를 분석하여 JSON 형식으로 응답해주세요.
+        응답은 반드시 다음 형식을 따라야 합니다:
+        {{
+            "학생_프로필": {{
+                "기본_정보_요약": "string",
+                "진로희망": "string",
+                "강점": ["string"],
+                "약점": ["string"]
+            }},
+            "교과_성취도": {{
+                "과목별_분석": {{}}
+            }},
+            "활동_내역": {{}},
+            "진로_적합성": {{
+                "일치도": "string",
+                "적합_진로_옵션": ["string"]
+            }},
+            "학업_발전_전략": {{
+                "교과목_분석": {{}},
+                "권장_전략": ["string"]
+            }},
+            "진로_로드맵": {{
+                "단기_목표": ["string"],
+                "중기_목표": ["string"],
+                "장기_목표": ["string"],
+                "추천_활동": {{
+                    "교과_활동": ["string"],
+                    "비교과_활동": ["string"]
+                }}
+            }}
+        }}
+
+        분석할 데이터:
+        {prompt}
+        """
+        
+        # API 호출
+        response = model.generate_content(formatted_prompt)
+        
+        # 응답에서 JSON 문자열 추출
         response_text = response.text
         
-        # React 컴포넌트 코드 추출
-        react_code = None
-        css_code = None
-        usage_guide = None
+        # JSON 블록 추출을 위한 정규식 패턴
+        import re
+        json_pattern = r'\{[\s\S]*\}'
+        json_match = re.search(json_pattern, response_text)
         
-        # React 코드 블록 찾기
-        if '```jsx' in response_text or '```react' in response_text:
-            code_blocks = response_text.split('```')
-            for i, block in enumerate(code_blocks):
-                if block.startswith('jsx') or block.startswith('react'):
-                    react_code = code_blocks[i+1].strip()
-                elif block.startswith('css'):
-                    css_code = code_blocks[i+1].strip()
-        
-        # JSON 데이터 추출 및 파싱
-        try:
-            # JSON 부분 찾기
-            json_str = None
-            if '```json' in response_text:
-                json_str = response_text.split('```json')[1].split('```')[0].strip()
-            else:
-                # JSON 블록이 없는 경우 마지막 코드 블록 이후의 텍스트에서 JSON 찾기
-                parts = response_text.split('```')
-                for part in parts:
-                    if '{' in part and '}' in part:
-                        json_str = part.strip()
-                        break
-            
-            if not json_str:
-                raise Exception("JSON 데이터를 찾을 수 없습니다.")
-            
-            # JSON 문자열 정리
-            json_str = json_str.replace('\n', ' ').replace('\t', ' ')
-            json_str = ' '.join(json_str.split())
-            json_str = json_str.replace("'", '"')
-            
-            # 따옴표 없는 키에 따옴표 추가
-            import re
-            json_str = re.sub(r'([{,])\s*([a-zA-Z_가-힣][a-zA-Z0-9_가-힣]*)\s*:', r'\1"\2":', json_str)
-            
+        if json_match:
+            json_str = json_match.group()
             # JSON 파싱
-            result = json.loads(json_str)
-            
-            # React 관련 코드가 있으면 결과에 추가
-            if react_code or css_code:
-                result['시각화_코드'] = {
-                    'react_component': react_code or '',
-                    'css_styles': css_code or '',
-                    '설명': usage_guide or '컴포넌트를 사용하기 전에 필요한 라이브러리를 설치하세요.'
-                }
-            
-            return result
-            
-        except Exception as e:
-            print(f"응답 처리 오류: {e}")
-            print(f"원본 응답: {response_text}")
-            raise Exception(f"응답 처리 중 오류가 발생했습니다: {str(e)}")
+            try:
+                result = json.loads(json_str)
+                return result
+            except json.JSONDecodeError as e:
+                print(f"JSON 파싱 오류: {str(e)}")
+                print(f"파싱 시도한 문자열: {json_str}")
+                return {"error": f"JSON 파싱 오류: {str(e)}"}
+        else:
+            print("응답에서 JSON을 찾을 수 없습니다.")
+            print(f"전체 응답: {response_text}")
+            return {"error": "응답에서 JSON을 찾을 수 없습니다."}
             
     except Exception as e:
-        print(f"Gemini API 호출 오류: {e}")
-        return {"error": str(e)}
+        print(f"API 호출 중 오류: {str(e)}")
+        return {"error": f"API 호출 중 오류: {str(e)}"}
 
 def create_subject_radar_chart(subject_data: Dict[str, Any]) -> go.Figure:
     """교과별 성취도를 레이더 차트로 시각화합니다."""
