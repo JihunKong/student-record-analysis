@@ -10,8 +10,8 @@ from datetime import datetime
 import google.generativeai as genai
 
 # 로컬 모듈 임포트
-from utils import preprocess_csv, extract_student_info, create_downloadable_report, plot_timeline, create_radar_chart
-from analyzer import analyze_student_record
+from utils import preprocess_csv, extract_student_info, create_downloadable_report, plot_timeline, create_radar_chart, process_csv_file, create_analysis_prompt
+from analyzer import analyze_student_record, analyze_with_gemini
 
 # .env 파일 로드
 load_dotenv()
@@ -58,101 +58,107 @@ if 'analysis_results' not in st.session_state:
 
 # 파일 업로드 섹션
 st.title("학생 생활기록부 분석 시스템")
-st.write("CSV 형식의 생활기록부 데이터를 업로드하여 분석을 시작하세요.")
+st.write("CSV 형식의 학생 생활기록부 파일을 업로드하면 AI가 분석 결과를 제공합니다.")
 
-uploaded_file = st.file_uploader("CSV 파일을 업로드하세요", type=['csv'])
+uploaded_file = st.file_uploader("생활기록부 CSV 파일을 업로드하세요", type=['csv'])
 
 if uploaded_file is not None:
     try:
-        # 파일 처리 시작을 알림
-        with st.spinner('파일을 처리하는 중입니다...'):
-            df = preprocess_csv(uploaded_file)
-            st.session_state.df = df
-            st.session_state.uploaded_file = uploaded_file
+        # 파일 처리
+        csv_content = process_csv_file(uploaded_file)
+        
+        # 분석 프롬프트 생성
+        prompt = create_analysis_prompt(csv_content)
+        
+        # Gemini API를 통한 분석
+        with st.spinner('AI가 생활기록부를 분석하고 있습니다...'):
+            analysis_result = analyze_with_gemini(prompt)
+        
+        if "error" in analysis_result:
+            st.error(f"분석 중 오류가 발생했습니다: {analysis_result['error']}")
+            st.stop()
             
-            # 성공 메시지 표시
-            st.success('파일이 성공적으로 업로드되었습니다!')
+        # 분석 결과 표시
+        st.header("📊 분석 결과")
+        
+        # 학생 프로필
+        st.subheader("👤 학생 프로필")
+        profile = analysis_result["학생_프로필"]
+        st.write(f"**기본 정보:** {profile['기본_정보_요약']}")
+        st.write(f"**진로 희망:** {profile['진로희망']}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**강점:**")
+            for strength in profile["강점"]:
+                st.write(f"- {strength}")
+        with col2:
+            st.write("**개선이 필요한 부분:**")
+            for weakness in profile["약점"]:
+                st.write(f"- {weakness}")
+        
+        # 교과 성취도
+        st.subheader("📚 교과 성취도")
+        for subject, analysis in analysis_result["교과_성취도"]["과목별_분석"].items():
+            st.write(f"**{subject}:** {analysis}")
+        
+        # 활동 내역
+        st.subheader("🎯 활동 내역")
+        activities = analysis_result["활동_내역"]
+        for activity_type, content in activities.items():
+            st.write(f"**{activity_type}:** {content}")
+        
+        # 진로 적합성
+        st.subheader("🎯 진로 적합성")
+        career = analysis_result["진로_적합성"]
+        st.write(f"**현재 진로희망과의 일치도:** {career['일치도']}")
+        st.write("**추천 진로 옵션:**")
+        for option in career["적합_진로_옵션"]:
+            st.write(f"- {option}")
+        
+        # 학업 발전 전략
+        st.subheader("📈 학업 발전 전략")
+        strategy = analysis_result["학업_발전_전략"]
+        st.write("**교과목별 학습 전략:**")
+        for subject, strat in strategy["교과목_분석"].items():
+            st.write(f"- **{subject}:** {strat}")
+        
+        st.write("**권장 학습 전략:**")
+        for strat in strategy["권장_전략"]:
+            st.write(f"- {strat}")
+        
+        # 진로 로드맵
+        st.subheader("🗺 진로 로드맵")
+        roadmap = analysis_result["진로_로드맵"]
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.write("**단기 목표:**")
+            for goal in roadmap["단기_목표"]:
+                st.write(f"- {goal}")
+        with col2:
+            st.write("**중기 목표:**")
+            for goal in roadmap["중기_목표"]:
+                st.write(f"- {goal}")
+        with col3:
+            st.write("**장기 목표:**")
+            for goal in roadmap["장기_목표"]:
+                st.write(f"- {goal}")
+        
+        st.write("**추천 활동:**")
+        activities = roadmap["추천_활동"]
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**교과 활동:**")
+            for activity in activities["교과_활동"]:
+                st.write(f"- {activity}")
+        with col2:
+            st.write("**비교과 활동:**")
+            for activity in activities["비교과_활동"]:
+                st.write(f"- {activity}")
             
-            # 데이터 미리보기
-            st.subheader("데이터 미리보기")
-            
-            # 메인 데이터와 성적 데이터 분리
-            main_data, grade_data = df
-            
-            # 메인 데이터 미리보기
-            st.write("### 교과 및 활동 데이터")
-            if not main_data.empty:
-                st.dataframe(main_data.head())
-            else:
-                st.warning("교과 및 활동 데이터를 찾을 수 없습니다.")
-            
-            # 성적 데이터 미리보기
-            st.write("### 성적 데이터")
-            if not grade_data.empty:
-                st.dataframe(grade_data.head())
-            else:
-                st.warning("성적 데이터를 찾을 수 없습니다.")
-            
-            # 학생 정보 추출
-            try:
-                student_info = extract_student_info(df)
-                st.session_state.student_info = student_info
-                
-                # 학생 정보 표시
-                st.subheader("학생 정보")
-                
-                # 교과별 세부능력 및 특기사항 표시
-                st.write("### 교과별 세부능력 및 특기사항")
-                academic_performance = student_info.get('academic_performance', {})
-                if academic_performance:
-                    for subject, content in academic_performance.items():
-                        with st.expander(f"📚 {subject}"):
-                            st.write(content)
-                else:
-                    st.info("교과별 세부능력 및 특기사항이 없습니다.")
-                
-                # 활동 내역 표시
-                st.write("### 활동 내역")
-                activities = student_info.get('activities', {})
-                if activities:
-                    for activity_type, content in activities.items():
-                        with st.expander(f"🎯 {activity_type}"):
-                            st.write(content)
-                else:
-                    st.info("활동 내역이 없습니다.")
-                
-                # 진로 희망 표시
-                if student_info.get('career_aspiration'):
-                    st.write("### 진로 희망")
-                    st.info(f"🎯 {student_info['career_aspiration']}")
-                
-                # 분석 시작 버튼
-                if st.button("분석 시작", key="start_analysis"):
-                    with st.spinner("학생 데이터를 분석하는 중입니다..."):
-                        try:
-                            analysis_results = analyze_student_record(student_info)
-                            st.session_state.analysis_results = analysis_results
-                            st.success("분석이 완료되었습니다!")
-                            
-                            # 분석 결과 표시 섹션으로 자동 스크롤
-                            st.experimental_set_query_params(section='analysis_results')
-                            
-                        except Exception as e:
-                            st.error(f"분석 중 오류가 발생했습니다: {str(e)}")
-                            st.info("다시 시도해주세요. 문제가 지속되면 관리자에게 문의하세요.")
-                
-            except Exception as e:
-                st.error(f"학생 정보 추출 중 오류가 발생했습니다: {str(e)}")
-                st.info("파일 형식이 올바른지 확인해주세요.")
-                
     except Exception as e:
         st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
-        st.info("""
-        다음 사항을 확인해주세요:
-        1. 파일이 올바른 CSV 형식인가요?
-        2. 한글이 포함된 경우 인코딩이 올바른가요?
-        3. 필수 컬럼이 모두 포함되어 있나요?
-        """)
 
 # 앱 실행
 if __name__ == "__main__":
