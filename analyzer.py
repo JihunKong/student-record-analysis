@@ -119,34 +119,33 @@ def analyze_with_gemini(prompt: str) -> Dict[str, Any]:
         # 프롬프트에 JSON 형식 지정을 명시적으로 추가
         formatted_prompt = f"""
         다음 학생 생활기록부 데이터를 분석하여 JSON 형식으로 응답해주세요.
-        응답은 반드시 다음 형식을 따라야 합니다:
+        응답은 반드시 아래 형식의 JSON만을 반환해야 합니다. 다른 설명이나 텍스트를 포함하지 마세요.
+        
         {{
             "학생_프로필": {{
-                "기본_정보_요약": "string",
-                "진로희망": "string",
+                "기본_정보": "string",
                 "강점": ["string"],
-                "약점": ["string"]
+                "약점": ["string"],
+                "학업_패턴": "string"
             }},
-            "교과_성취도": {{
-                "과목별_분석": {{}}
-            }},
-            "활동_내역": {{}},
             "진로_적합성": {{
-                "일치도": "string",
-                "적합_진로_옵션": ["string"]
+                "분석_결과": "string",
+                "추천_진로": ["string"],
+                "진로_로드맵": "string"
             }},
             "학업_발전_전략": {{
-                "교과목_분석": {{}},
-                "권장_전략": ["string"]
+                "분석_결과": "string",
+                "개선_전략": ["string"]
+            }},
+            "학부모_상담_가이드": {{
+                "분석_결과": "string",
+                "상담_포인트": ["string"],
+                "지원_방안": ["string"]
             }},
             "진로_로드맵": {{
                 "단기_목표": ["string"],
                 "중기_목표": ["string"],
-                "장기_목표": ["string"],
-                "추천_활동": {{
-                    "교과_활동": ["string"],
-                    "비교과_활동": ["string"]
-                }}
+                "장기_목표": ["string"]
             }}
         }}
 
@@ -158,7 +157,7 @@ def analyze_with_gemini(prompt: str) -> Dict[str, Any]:
         response = model.generate_content(formatted_prompt)
         
         # 응답에서 JSON 문자열 추출
-        response_text = response.text
+        response_text = response.text.strip()
         
         # JSON 블록 추출을 위한 정규식 패턴
         import re
@@ -167,6 +166,12 @@ def analyze_with_gemini(prompt: str) -> Dict[str, Any]:
         
         if json_match:
             json_str = json_match.group()
+            # JSON 문자열 정리
+            json_str = re.sub(r'[\n\t]', '', json_str)  # 줄바꿈과 탭 제거
+            json_str = re.sub(r',\s*}', '}', json_str)  # 마지막 쉼표 제거
+            json_str = re.sub(r',\s*]', ']', json_str)  # 마지막 쉼표 제거
+            json_str = re.sub(r'([{,])\s*([a-zA-Z_가-힣][^:]*?):', r'\1"\2":', json_str)  # 키를 따옴표로 감싸기
+            
             # JSON 파싱
             try:
                 result = json.loads(json_str)
@@ -174,7 +179,17 @@ def analyze_with_gemini(prompt: str) -> Dict[str, Any]:
             except json.JSONDecodeError as e:
                 print(f"JSON 파싱 오류: {str(e)}")
                 print(f"파싱 시도한 문자열: {json_str}")
-                return {"error": f"JSON 파싱 오류: {str(e)}"}
+                
+                # 백업 방법: 더 엄격한 정리 시도
+                try:
+                    # 모든 작은따옴표를 큰따옴표로 변경
+                    json_str = json_str.replace("'", '"')
+                    # 따옴표로 감싸지지 않은 문자열 찾아서 감싸기
+                    json_str = re.sub(r':\s*([^"{}\[\],\s][^,}\]]*)', r': "\1"', json_str)
+                    result = json.loads(json_str)
+                    return result
+                except json.JSONDecodeError as e2:
+                    return {"error": f"JSON 파싱 오류: {str(e2)}"}
         else:
             print("응답에서 JSON을 찾을 수 없습니다.")
             print(f"전체 응답: {response_text}")
