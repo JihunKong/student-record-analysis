@@ -106,7 +106,11 @@ def analyze_with_claude(prompt):
         client = anthropic.Anthropic(api_key=anthropic_api_key)
         
         try:
-            # API 호출 전에 인코딩 문제를 피하기 위해 프롬프트 처리
+            # 로깅 추가
+            logging.info("Claude API 호출 시작")
+            logging.info(f"프롬프트 길이: {len(prompt)}")
+            
+            # 인코딩 오류 방지를 위해 API 호출 단순화
             message = client.messages.create(
                 model="claude-3-7-sonnet-20250219",
                 max_tokens=4000,
@@ -116,23 +120,27 @@ def analyze_with_claude(prompt):
                 ]
             )
             
-            # 응답 확인 및 텍스트 추출
-            if hasattr(message, 'content') and message.content:
-                # content는 리스트 형태일 수 있으므로 적절히 처리
-                if isinstance(message.content, list):
-                    text_blocks = [block.text for block in message.content if hasattr(block, 'text')]
-                    return '\n'.join(text_blocks)
-                elif hasattr(message.content, 'text'):
-                    return message.content.text
-                else:
-                    # 예상치 못한 응답 구조인 경우
-                    return str(message.content)
+            logging.info("Claude API 응답 수신 완료")
+            
+            # 응답 처리 단순화
+            if message.content:
+                result_text = ""
+                for content_item in message.content:
+                    if content_item.type == "text":
+                        result_text += content_item.text
+                return result_text
             else:
                 return "API 응답에서 내용을 찾을 수 없습니다."
                 
         except Exception as api_error:
-            logging.error(f"Claude API 호출 오류: {str(api_error)}")
-            return f"AI 분석 중 API 오류가 발생했습니다: {str(api_error)}"
+            error_msg = str(api_error)
+            logging.error(f"Claude API 호출 오류: {error_msg}")
+            
+            # ASCII 인코딩 에러가 발생한 경우 특별 처리
+            if "ascii" in error_msg and "codec" in error_msg:
+                return "인코딩 오류가 발생했습니다. 분석을 완료할 수 없습니다. 관리자에게 문의하세요."
+            
+            return f"AI 분석 중 API 오류가 발생했습니다: {error_msg}"
             
     except Exception as e:
         logging.error(f"분석 오류: {str(e)}")
@@ -188,14 +196,49 @@ def create_activity_timeline(activities: List[Dict[str, Any]]) -> go.Figure:
     
     return fig
 
+def analyze_csv_directly(csv_content):
+    """CSV 데이터를 직접 분석합니다."""
+    prompt = f"""
+다음은 학생 진학 카드 CSV 데이터입니다. 이 데이터를 분석하여 학생의 특성과 발전 가능성을 분석해주세요.
+
+CSV 데이터:
+{csv_content}
+
+위 데이터를 바탕으로 다음 항목들을 분석해주세요:
+
+1. 학업 역량 분석
+- 전반적인 학업 수준과 발전 추이
+- 과목별 특징과 강점
+- 학습 태도와 참여도
+
+2. 학생 특성 분석
+- 성격 및 행동 특성
+- 두드러진 역량과 관심사
+- 대인관계 및 리더십
+
+3. 진로 적합성 분석
+- 희망 진로와 현재 역량의 연관성
+- 진로 실현을 위한 준비 상태
+- 발전 가능성과 보완이 필요한 부분
+
+4. 종합 제언
+- 학생의 주요 강점과 특징
+- 향후 발전을 위한 구체적 조언
+- 진로 실현을 위한 활동 추천
+
+분석은 객관적 데이터를 기반으로 하되, 긍정적이고 발전적인 관점에서 작성해주세요.
+학생의 강점을 최대한 살리고 약점을 보완할 수 있는 방안을 제시하세요.
+권장하는 활동과 고려할 전략은 구체적이고 실행 가능한 것으로 제안해주세요.
+"""
+    return analyze_with_claude(prompt)
+
 def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
     """학생 생활기록부를 분석하여 종합적인 결과를 반환합니다."""
     try:
+        # 기존 분석 방식 사용
         analysis_result = analyze_with_claude(create_analysis_prompt(student_data))
         return {"analysis": analysis_result}
         
     except Exception as e:
-        print(f"학생 기록 분석 중 오류 발생: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logging.error(f"학생 기록 분석 중 오류 발생: {str(e)}")
         return {"error": str(e)} 

@@ -16,19 +16,20 @@ def analyze_student_record(student_info: dict) -> dict:
     """학생 생활기록부를 분석하여 종합적인 결과를 반환합니다."""
     try:
         # Claude API로 분석 요청을 위한 프롬프트 생성
-        from analyzer import analyze_with_claude
+        from analyzer import analyze_with_claude, analyze_csv_directly, create_analysis_prompt
         
         # 프롬프트 생성
         prompt = create_analysis_prompt(student_info)
         
-        # Claude API를 통한 분석 요청
+        # 분석 시도
         try:
-            analysis_result = analyze_with_claude(student_info)
+            # 분석 요청
+            analysis_result = analyze_with_claude(prompt)
             return {"analysis": analysis_result}
         except Exception as e:
             print(f"Claude API 호출 중 오류: {str(e)}")
             # 오류 발생 시 프롬프트만 반환
-            return {"analysis": prompt}
+            return {"analysis": prompt, "error": str(e)}
         
     except Exception as e:
         print(f"분석 중 오류 발생: {str(e)}")
@@ -176,127 +177,113 @@ def display_special_notes(student_data):
             st.subheader("진로 희망")
             st.info(student_data['career_aspiration'])
 
+# CSV 파일 처리 함수
+def process_uploaded_file(uploaded_file):
+    try:
+        # 파일 내용 읽기
+        file_content = uploaded_file.getvalue().decode('utf-8')
+        
+        # 파일 처리 및 학생 정보 추출
+        student_info = process_csv_file(uploaded_file)
+        
+        # AI 분석 직접 호출 준비
+        from analyzer import analyze_csv_directly
+        
+        try:
+            # CSV 파일 전체를 직접 Claude에 전달하여 분석
+            analysis_result = analyze_csv_directly(file_content)
+            student_info["ai_analysis"] = analysis_result
+        except Exception as e:
+            st.error(f"AI 분석 중 오류가 발생했습니다: {str(e)}")
+            student_info["ai_analysis"] = "분석 중 오류가 발생했습니다."
+        
+        return student_info
+        
+    except Exception as e:
+        st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
+        return None
+
+# 메인 애플리케이션
 def main():
+    # 페이지 설정
     st.set_page_config(
-        page_title="학생 생활기록부 분석",
+        page_title="학생 진학카드 분석기",
         page_icon="📊",
-        layout="wide",
-        initial_sidebar_state="expanded"
+        layout="wide"
     )
     
-    # 커스텀 CSS - 여백 줄이기
+    # 스타일시트 적용
     st.markdown("""
     <style>
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 1rem;
+        .main-header {
+            font-size: 36px !important;
+            text-align: center;
+            margin-bottom: 20px;
+            color: #1E3A8A;
         }
-        .st-emotion-cache-16idsys {
-            padding-top: 1rem;
-            padding-bottom: 0.5rem;
+        .section-header {
+            font-size: 24px !important;
+            color: #2563EB;
+            margin-top: 20px;
+            margin-bottom: 10px;
         }
-        .st-emotion-cache-13ln4jf {
-            padding-top: 0.5rem;
-            padding-bottom: 0.5rem;
+        .data-container {
+            background-color: #F3F4F6;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
         }
-        div[data-testid="stVerticalBlock"] {
-            gap: 0.5rem;
+        .streamlit-expanderHeader {
+            font-size: 18px !important;
+            font-weight: bold;
+        }
+        .special-note-block {
+            background-color: #EFF6FF;
+            padding: 15px;
+            border-left: 4px solid #2563EB;
+            margin-bottom: 10px;
+            border-radius: 0px 5px 5px 0px;
+        }
+        .grade-box {
+            background-color: #E0E7FF;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+        }
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 10px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            height: 50px;
+            white-space: pre-wrap;
+            background-color: #F3F4F6;
+            border-radius: 5px 5px 0px 0px;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: #DBEAFE;
         }
     </style>
     """, unsafe_allow_html=True)
-
-    # 앱 타이틀
-    st.markdown('<h1 class="main-header">📚 학생부 분석 시스템</h1>', unsafe_allow_html=True)
-    st.markdown("---")
-
-    # 사이드바
-    with st.sidebar:
-        st.title("학생부 분석기")
-        st.write("""
-        이 앱은 학생의 학생부 데이터를 분석하여 
-        학생의 특성과 진로 적합성을 파악하는 도구입니다.
-        """)
-        st.markdown("---")
-        st.markdown("© 2025 학생부 분석기 Made by 공지훈")
-
-        # 사이드바에 파일 업로더 배치
-        st.header("데이터 업로드")
-        uploaded_file = st.file_uploader("CSV 파일을 업로드하세요", type=['csv'])
-        
-        if uploaded_file:
-            st.success("파일이 성공적으로 업로드되었습니다!")
-
-    # 메인 컨텐츠 영역
-    if uploaded_file:
+    
+    # 페이지 헤더
+    st.markdown('<h1 class="main-header">📊 학생 진학카드 분석기</h1>', unsafe_allow_html=True)
+    
+    # 파일 업로드 섹션
+    st.markdown('<h2 class="section-header">📁 파일 업로드</h2>', unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("진학카드 CSV 파일을 업로드하세요", type=['csv'])
+    
+    if uploaded_file is not None:
         try:
-            st.info("파일을 처리 중입니다. 잠시만 기다려주세요...")
-            
-            # 파일을 임시 파일로 저장하고 경로 얻기
-            temp_file_path = "temp_uploaded_file.csv"
-            with open(temp_file_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            
             # 파일 처리 및 학생 정보 추출
-            student_data = process_csv_file(temp_file_path)
+            student_info = process_uploaded_file(uploaded_file)
             
-            if not student_data:
-                st.error("파일 처리에 실패했습니다. 파일 형식을 확인해주세요.")
-                st.stop()
-            
-            # 디버깅 정보
-            st.write("파일 처리 결과")
-            
-            if 'special_notes' in student_data and 'subjects' in student_data['special_notes']:
-                st.write(f"- 세특 데이터: {len(student_data['special_notes']['subjects'])} 과목")
-            else:
-                st.write("- 세특 데이터: 없음")
-                
-            if 'academic_records' in student_data:
-                semester1_count = len(student_data['academic_records'].get('semester1', {}).get('grades', {}))
-                semester2_count = len(student_data['academic_records'].get('semester2', {}).get('grades', {}))
-                st.write(f"- 성적 데이터: 1학기 {semester1_count}과목, 2학기 {semester2_count}과목")
-            else:
-                st.write("- 성적 데이터: 없음")
-            
-            student_info = student_data  # 더 이상 별도 추출이 필요 없음
-            
-            # 학생 정보가 비어있으면 예외 발생
-            if not student_info or not student_info.get('special_notes', {}).get('subjects'):
-                st.warning("학생 정보를 충분히 추출할 수 없습니다. 일부 기능이 제한될 수 있습니다.")
-            else:
+            if student_info:
                 # 탭 생성
-                tab1, tab2, tab3, tab4 = st.tabs(["원본 데이터", "성적 분석", "세특 열람", "AI 분석"])
+                tab1, tab2, tab3 = st.tabs(["📝 세부 특기사항", "📈 성적 분석", "🤖 AI 분석"])
                 
                 with tab1:
-                    st.markdown('<h2 class="section-header">📊 원본 데이터</h2>', unsafe_allow_html=True)
-                    
-                    # 세특 데이터 표시
-                    st.markdown("### 세부능력 및 특기사항")
-                    
-                    # 과목별 세특 표시
-                    if 'subjects' in student_info['special_notes'] and student_info['special_notes']['subjects']:
-                        subjects_df = pd.DataFrame({
-                            '과목': list(student_info['special_notes']['subjects'].keys()),
-                            '내용': list(student_info['special_notes']['subjects'].values())
-                        })
-                        st.dataframe(subjects_df, use_container_width=True)
-                    else:
-                        st.info("과목별 세특 데이터가 없습니다.")
-                    
-                    # 활동별 세특 표시
-                    if 'activities' in student_info['special_notes'] and student_info['special_notes']['activities']:
-                        st.markdown("### 활동별 특기사항")
-                        activities_df = pd.DataFrame({
-                            '활동': list(student_info['special_notes']['activities'].keys()),
-                            '내용': list(student_info['special_notes']['activities'].values())
-                        })
-                        st.dataframe(activities_df, use_container_width=True)
-                    else:
-                        st.info("활동별 세특 데이터가 없습니다.")
-                    
-                    # 성적 데이터 표시
-                    st.markdown("### 성적 데이터")
-                    display_grade_data(student_info)
+                    st.markdown('<h2 class="section-header">📝 세부 특기사항 및 활동</h2>', unsafe_allow_html=True)
+                    display_special_notes(student_info)
                 
                 with tab2:
                     st.markdown('<h2 class="section-header">📈 성적 분석</h2>', unsafe_allow_html=True)
@@ -412,40 +399,71 @@ def main():
                         
                         st.plotly_chart(fig, use_container_width=True)
                         
-                        # 2. 학점 가중치를 반영한 성적 차트
-                        st.subheader("학점 가중치를 반영한 성적")
+                        # 2. 학점 가중치를 반영한 등급 차트
+                        st.subheader("학점 가중치를 반영한 등급")
                         
-                        # 등급과 학점을 곱한 가중 점수 계산 (학점이 높고 등급이 좋을수록(낮을수록) 점수가 높음)
-                        sem1_weighted = [(10 - g) * c if g > 0 and c > 0 else 0 for g, c in zip(valid_sem1_grades, valid_sem1_credits)]
-                        sem2_weighted = [(10 - g) * c if g > 0 and c > 0 else 0 for g, c in zip(valid_sem2_grades, valid_sem2_credits)]
+                        # 등급과 학점으로 보정한 등급 계산 (학점이 높을수록 등급에 가중치 부여)
+                        # 1등급이 좋은 점수이므로 가중치가 클수록 등급이 낮아짐 (1에 가까워짐)
+                        sem1_adjusted = []
+                        sem2_adjusted = []
+                        sem1_adjusted_labels = []
+                        sem2_adjusted_labels = []
                         
-                        fig_weighted = go.Figure()
+                        for g, c in zip(valid_sem1_grades, valid_sem1_credits):
+                            if g > 0 and c > 0:
+                                # 학점 가중치를 적용한 등급 계산 (학점이 클수록 등급이 좋아짐)
+                                # 예: 3등급, 3학점 => 3 - (3-1)*0.1 = 2.8등급
+                                adjusted = max(1, g - (c-1) * 0.2)
+                                sem1_adjusted.append(adjusted)
+                                sem1_adjusted_labels.append(f"{adjusted:.1f}")
+                            else:
+                                sem1_adjusted.append(0)
+                                sem1_adjusted_labels.append("N/A")
+                        
+                        for g, c in zip(valid_sem2_grades, valid_sem2_credits):
+                            if g > 0 and c > 0:
+                                adjusted = max(1, g - (c-1) * 0.2)
+                                sem2_adjusted.append(adjusted)
+                                sem2_adjusted_labels.append(f"{adjusted:.1f}")
+                            else:
+                                sem2_adjusted.append(0)
+                                sem2_adjusted_labels.append("N/A")
+                        
+                        # 등급을 높이로 변환 (1등급=9, 9등급=1)
+                        sem1_adjusted_heights = [10 - g if g > 0 else 0 for g in sem1_adjusted]
+                        sem2_adjusted_heights = [10 - g if g > 0 else 0 for g in sem2_adjusted]
+                        
+                        fig_adjusted = go.Figure()
                         
                         # 1학기 데이터
-                        if any(score > 0 for score in sem1_weighted):
-                            fig_weighted.add_trace(go.Bar(
+                        if any(height > 0 for height in sem1_adjusted_heights):
+                            fig_adjusted.add_trace(go.Bar(
                                 name='1학기', 
                                 x=valid_subjects, 
-                                y=sem1_weighted,
-                                text=[f"{s:.1f}" if s > 0 else "N/A" for s in sem1_weighted],
+                                y=sem1_adjusted_heights,
+                                text=sem1_adjusted_labels,
                                 textposition='auto'
                             ))
                         
                         # 2학기 데이터
-                        if any(score > 0 for score in sem2_weighted):
-                            fig_weighted.add_trace(go.Bar(
+                        if any(height > 0 for height in sem2_adjusted_heights):
+                            fig_adjusted.add_trace(go.Bar(
                                 name='2학기', 
                                 x=valid_subjects, 
-                                y=sem2_weighted,
-                                text=[f"{s:.1f}" if s > 0 else "N/A" for s in sem2_weighted],
+                                y=sem2_adjusted_heights,
+                                text=sem2_adjusted_labels,
                                 textposition='auto'
                             ))
                         
-                        fig_weighted.update_layout(
-                            title="과목별 학점 가중치 반영 성적 (막대가 높을수록 좋은 점수)",
+                        fig_adjusted.update_layout(
+                            title="과목별 학점 가중치 반영 등급 (막대가 높을수록 좋은 등급)",
                             barmode='group',
                             yaxis=dict(
-                                title="가중 점수",
+                                title="보정 등급",
+                                tickmode='array',
+                                tickvals=[1, 2, 3, 4, 5, 6, 7, 8, 9],
+                                ticktext=['9등급', '8등급', '7등급', '6등급', '5등급', '4등급', '3등급', '2등급', '1등급'],
+                                range=[0, 9.5]
                             ),
                             legend=dict(
                                 orientation="h",
@@ -458,7 +476,18 @@ def main():
                             height=400
                         )
                         
-                        st.plotly_chart(fig_weighted, use_container_width=True)
+                        st.plotly_chart(fig_adjusted, use_container_width=True)
+                        
+                        # 학점 가중치 설명
+                        st.info("""
+                        **학점 가중치 계산 방법**: 
+                        학점이 높은 과목일수록 등급이 더 좋아지도록(낮아지도록) 보정합니다.
+                        * 기본 학점(1점)은 원래 등급 그대로 유지
+                        * 2학점은 원래 등급에서 0.2 차감
+                        * 3학점은 원래 등급에서 0.4 차감
+                        * 4학점은 원래 등급에서 0.6 차감
+                        * 최소 등급은 1등급으로 제한
+                        """)
                     else:
                         st.info("과목별 등급 데이터가 없습니다.")
                     
@@ -544,37 +573,26 @@ def main():
                             st.metric("2학기 평균 등급 (7과목)", "N/A")
                 
                 with tab3:
-                    st.markdown('<h2 class="section-header">📋 세부능력 및 특기사항</h2>', unsafe_allow_html=True)
+                    st.markdown('<h2 class="section-header">🤖 AI 분석 결과</h2>', unsafe_allow_html=True)
                     
-                    # 교과별 세특
-                    st.markdown('<h3 class="subsection-header">🎓 교과별 세특</h3>', unsafe_allow_html=True)
-                    
-                    display_special_notes(student_info)
-                
-                with tab4:
-                    st.markdown('<h2 class="section-header">🤖 AI 분석</h2>', unsafe_allow_html=True)
-                    
-                    if st.button("AI 분석 실행", use_container_width=True):
-                        with st.spinner("AI가 학생부를 분석하고 있습니다..."):
-                            try:
-                                # 데이터를 문자열로 변환
-                                data_str = str(student_info)
-                                
-                                # AI 분석 수행
-                                analysis_result = analyze_student_record(student_info)
-                                
-                                if "error" not in analysis_result:
-                                    st.markdown("<div class='analysis-card'>", unsafe_allow_html=True)
-                                    st.markdown(analysis_result["analysis"])
-                                    st.markdown("</div>", unsafe_allow_html=True)
-                                else:
-                                    st.error(f"AI 분석 중 오류가 발생했습니다: {analysis_result['error']}")
+                    if "ai_analysis" in student_info:
+                        st.markdown(student_info["ai_analysis"])
+                    else:
+                        try:
+                            # 분석 결과 가져오기
+                            analysis_result = analyze_student_record(student_info)
                             
-                            except Exception as e:
-                                st.error(f"AI 분석 중 오류가 발생했습니다: {str(e)}")
-            
+                            if "analysis" in analysis_result:
+                                st.markdown(analysis_result["analysis"])
+                            else:
+                                st.error("AI 분석 결과를 가져올 수 없습니다.")
+                        except Exception as e:
+                            st.error(f"AI 분석 중 오류가 발생했습니다: {str(e)}")
+        
         except Exception as e:
             st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
+            import traceback
+            st.text(traceback.format_exc())
 
 # 앱 실행
 if __name__ == "__main__":
