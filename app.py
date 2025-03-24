@@ -10,7 +10,8 @@ from datetime import datetime
 import google.generativeai as genai
 
 # 로컬 모듈 임포트
-from utils import process_csv_file, extract_student_info, analyze_with_gemini
+from utils import process_csv_file, extract_student_info
+from analyzer import analyze_with_gemini
 
 # .env 파일 로드
 load_dotenv()
