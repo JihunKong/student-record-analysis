@@ -97,16 +97,24 @@ def extract_student_info(df):
         subjects = ['국어', '수학', '영어', '한국사', '사회', '과학', '과학탐구실험', '정보', '체육', '음악', '미술']
         
         # 세특이 있는 행 찾기
-        setech_row = df[df.iloc[:, 0].str.contains('세부능력 및 특기사항', na=False)].index
-        if len(setech_row) > 0:
-            setech_start = setech_row[0]
-            setech_data = df.iloc[setech_start+1:].copy()
-            setech_data.columns = setech_data.iloc[0]
-            setech_data = setech_data.iloc[1:]
+        setech_rows = df[df.iloc[:, 0].str.contains('세부능력 및 특기사항', na=False)].index
+        if len(setech_rows) > 0:
+            setech_start = setech_rows[0]
+            setech_end = df[df.iloc[:, 0].str.contains('^학.?기$', na=False, regex=True)].index[0] if len(df[df.iloc[:, 0].str.contains('^학.?기$', na=False, regex=True)].index) > 0 else len(df)
             
+            # 세특 데이터 처리
+            setech_data = df.iloc[setech_start+1:setech_end].copy()
+            
+            # 첫 번째 행이 과목명을 포함하고 있는지 확인
+            if any(subject in str(cell) for cell in setech_data.iloc[0] for subject in subjects):
+                setech_data.columns = setech_data.iloc[0]
+                setech_data = setech_data.iloc[1:]
+            
+            # 각 과목별 세특 내용 추출
             for subject in subjects:
-                if subject in setech_data.columns:
-                    content = setech_data[subject].iloc[0]
+                matching_columns = [col for col in setech_data.columns if str(subject) in str(col)]
+                for col in matching_columns:
+                    content = setech_data[col].iloc[0] if len(setech_data) > 0 else None
                     if pd.notna(content):
                         academic_performance[subject] = str(content)
         
@@ -115,38 +123,40 @@ def extract_student_info(df):
         activity_types = ['자율', '동아리', '진로', '행특', '개인']
         
         for activity_type in activity_types:
-            if activity_type in df.columns:
-                content = df[activity_type].iloc[0]
+            matching_columns = [col for col in df.columns if str(activity_type) in str(col)]
+            for col in matching_columns:
+                content = df[col].iloc[0] if len(df) > 0 else None
                 if pd.notna(content):
                     activities[activity_type] = str(content)
         
         # 진로 희망
         career_aspiration = ""
-        if '진로희망' in df.columns:
-            career_aspiration = df['진로희망'].iloc[0]
+        career_columns = [col for col in df.columns if '진로' in str(col) and '희망' in str(col)]
+        if career_columns:
+            career_aspiration = df[career_columns[0]].iloc[0]
             career_aspiration = str(career_aspiration) if pd.notna(career_aspiration) else ""
         
         # 성적 데이터 섹션 찾기
         grades = []
         main_subjects = ['국어', '수학', '영어', '사회', '과학', '한국사', '정보']  # 주요 과목 리스트
-        grade_section = df[df.iloc[:, 0] == '학 기'].index
+        grade_section = df[df.iloc[:, 0].str.contains('^학.?기$', na=False, regex=True)].index
         if len(grade_section) > 0:
             grade_start = grade_section[0]
-            grade_data = df.iloc[grade_start+1:]  # 헤더 행 제외
+            grade_data = df.iloc[grade_start:].copy()
             
             # 과목별 학점수 저장
             subject_credits = {}
             
             for _, row in grade_data.iterrows():
                 try:
-                    if pd.notna(row.iloc[0]) and row.iloc[0] != '학 기':  # 학기 정보가 있고 헤더가 아닌 행만 처리
+                    if pd.notna(row.iloc[0]) and not str(row.iloc[0]).startswith('학'):  # 학기 정보가 있고 헤더가 아닌 행만 처리
                         semester = str(row.iloc[0])
-                        subject = str(row.iloc[2])
-                        grade = str(row.iloc[6]) if pd.notna(row.iloc[6]) else "0"
+                        subject = str(row.iloc[2]) if len(row) > 2 else ""
+                        grade = str(row.iloc[6]) if len(row) > 6 and pd.notna(row.iloc[6]) else "0"
                         
                         # 학점수가 숫자인 경우에만 처리
                         try:
-                            credit = float(row.iloc[3]) if pd.notna(row.iloc[3]) else 1.0
+                            credit = float(row.iloc[3]) if len(row) > 3 and pd.notna(row.iloc[3]) else 1.0
                         except (ValueError, TypeError):
                             credit = 1.0  # 학점수가 숫자가 아닌 경우 기본값 1.0 사용
                         
@@ -436,46 +446,39 @@ def process_csv_file(file):
         df = df.dropna(how='all').dropna(axis=1, how='all')
         
         # 세특 구분 행 찾기 (첫 번째 열에 '세부능력 및 특기사항'이 있는 행)
-        setech_row = df[df.iloc[:, 0].str.contains('세부능력 및 특기사항', na=False)].index
+        setech_rows = df[df.iloc[:, 0].str.contains('세부능력 및 특기사항', na=False)].index
+        grade_rows = df[df.iloc[:, 0].str.contains('^학.?기$', na=False, regex=True)].index
         
-        if len(setech_row) > 0:
-            setech_start = setech_row[0]
+        if len(setech_rows) > 0 and len(grade_rows) > 0:
+            setech_start = setech_rows[0]
+            grade_start = grade_rows[0]
             
-            # 성적 데이터 섹션 찾기 ('학 기' 또는 '학기'가 있는 행)
-            grade_row = df[df.iloc[:, 0].str.contains('^학.?기$', na=False, regex=True)].index
+            # 세특 데이터 추출
+            setech_data = df.iloc[setech_start:grade_start].copy()
             
-            if len(grade_row) > 0:
-                grade_start = grade_row[0]
-                
-                # 세특 데이터 추출 (세특 시작 행부터 성적 데이터 시작 행 전까지)
-                setech_data = df.iloc[setech_start+1:grade_start].copy()
-                
-                # 세특 데이터의 첫 번째 행을 컬럼으로 설정
-                setech_data.columns = setech_data.iloc[0]
-                setech_data = setech_data.iloc[1:]
-                
-                # 성적 데이터 추출
-                grade_data = df.iloc[grade_start:].copy()
-                
-                # 성적 데이터 컬럼 설정
-                grade_columns = ['학 기', '교 과', '과 목', '학점수', '원점수/과목평균\n (표준편차)', '성취도\n (수강자수)', '석차등급']
-                grade_data.columns = grade_columns[:len(grade_data.columns)]
-                grade_data = grade_data.iloc[1:]  # 헤더 행 제외
-                
-                # 두 데이터프레임 합치기
-                result_df = pd.concat([setech_data, grade_data], ignore_index=True)
-                return result_df
+            # 성적 데이터 추출
+            grade_data = df.iloc[grade_start:].copy()
             
-            else:
-                # 성적 데이터가 없는 경우 세특 데이터만 반환
-                setech_data = df.iloc[setech_start+1:].copy()
-                setech_data.columns = setech_data.iloc[0]
-                setech_data = setech_data.iloc[1:]
-                return setech_data
+            # 성적 데이터 컬럼 설정
+            grade_columns = ['학 기', '교 과', '과 목', '학점수', '원점수/과목평균\n (표준편차)', '성취도\n (수강자수)', '석차등급']
+            grade_data.columns = grade_columns[:len(grade_data.columns)]
+            
+            # 결과 데이터프레임 생성
+            result_df = pd.concat([setech_data, grade_data], axis=0, ignore_index=True)
+            return result_df
+            
+        elif len(setech_rows) > 0:
+            # 세특 데이터만 있는 경우
+            return df.iloc[setech_rows[0]:].copy()
+            
+        elif len(grade_rows) > 0:
+            # 성적 데이터만 있는 경우
+            grade_data = df.iloc[grade_rows[0]:].copy()
+            grade_columns = ['학 기', '교 과', '과 목', '학점수', '원점수/과목평균\n (표준편차)', '성취도\n (수강자수)', '석차등급']
+            grade_data.columns = grade_columns[:len(grade_data.columns)]
+            return grade_data
         
-        else:
-            # 세특 구분이 없는 경우 원본 데이터 반환
-            return df
+        return df
         
     except Exception as e:
         print(f"CSV 파일 처리 중 오류 발생: {str(e)}")  # 디버깅을 위한 출력 추가
