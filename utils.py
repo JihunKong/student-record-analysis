@@ -12,68 +12,111 @@ from typing import Dict, List, Any
 def preprocess_csv(file):
     """CSV 파일을 전처리하여 DataFrame으로 변환합니다."""
     try:
-        # CSV 파일 읽기
-        df = pd.read_csv(file, encoding='utf-8')
+        # 여러 인코딩 시도
+        encodings = ['utf-8-sig', 'utf-8', 'cp949', 'euc-kr']
+        df = None
         
-        # 빈 열 제거
+        for encoding in encodings:
+            try:
+                df = pd.read_csv(file, encoding=encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        if df is None:
+            raise Exception("파일을 읽을 수 없습니다. 인코딩 문제가 있을 수 있습니다.")
+        
+        # 빈 행과 열 제거
+        df = df.dropna(how='all')
         df = df.dropna(axis=1, how='all')
         
-        # 첫 번째 행을 컬럼명으로 설정
-        df.columns = df.iloc[0]
-        df = df.iloc[1:]
+        # 첫 번째 유효한 행을 찾아 컬럼명으로 설정
+        first_valid_row = df.iloc[0]
+        if not first_valid_row.isna().all():
+            df.columns = first_valid_row
+            df = df.iloc[1:]
         
         # 인덱스 재설정
         df = df.reset_index(drop=True)
         
         # 성적 데이터 섹션 찾기
-        grade_section = df[df.iloc[:, 0] == '학기'].index[0]
-        grade_data = df.iloc[grade_section+1:].copy()
-        
-        # 성적 데이터 컬럼명 설정
-        grade_columns = ['학기', '교과', '과목', '학점수', '원점수/과목평균', '성취도', '석차등급']
-        grade_data = grade_data.iloc[:, :len(grade_columns)]
-        grade_data.columns = grade_columns
-        
-        # 빈 행 제거
-        grade_data = grade_data.dropna(subset=['학기', '교과', '과목'])
-        
-        # 성적 데이터를 제외한 나머지 데이터
-        main_data = df.iloc[:grade_section].copy()
-        
-        return main_data, grade_data
+        try:
+            grade_section = df[df.iloc[:, 0] == '학 기'].index[0]
+            grade_data = df.iloc[grade_section:].copy()
+            
+            # 성적 데이터 컬럼명 설정
+            grade_columns = ['학 기', '교 과', '과 목', '학점수', '원점수/과목평균\n (표준편차)', '성취도\n (수강자수)', '석차등급']
+            grade_data = grade_data.iloc[:, :len(grade_columns)]
+            grade_data.columns = grade_columns
+            
+            # 빈 행 제거
+            grade_data = grade_data.dropna(subset=['학 기', '교 과', '과 목'], how='all')
+            
+            # 성적 데이터를 제외한 나머지 데이터
+            main_data = df.iloc[:grade_section].copy()
+            
+            return main_data, grade_data
+            
+        except IndexError:
+            # 성적 데이터 섹션을 찾지 못한 경우
+            return df, pd.DataFrame()
+            
     except Exception as e:
         raise Exception(f"CSV 파일 전처리 중 오류 발생: {str(e)}")
 
-def extract_student_info(df):
+def extract_student_info(df_tuple):
     """DataFrame에서 학생 정보를 추출합니다."""
     try:
-        main_data, grade_data = df
+        main_data, grade_data = df_tuple
         
         student_info = {}
         
         # 교과별 세부능력 및 특기사항
         academic_performance = {}
-        for subject in ['국어', '수학', '영어', '한국사', '사회', '과학', '과학탐구실험', '정보', '체육', '음악', '미술']:
+        subjects = ['국어', '수학', '영어', '한국사', '사회', '과학', '과학탐구실험', '정보', '체육', '음악', '미술']
+        
+        for subject in subjects:
             if subject in main_data.columns:
-                content = main_data[subject].iloc[0]
+                content = main_data[main_data.columns[list(main_data.columns).index(subject)]].iloc[0]
                 if pd.notna(content):
                     academic_performance[subject] = content
         
         # 활동 내역
         activities = {}
-        for activity_type in ['자율', '동아리', '진로', '행특', '개인']:
+        activity_types = ['자율', '동아리', '진로', '행특', '개인']
+        
+        for activity_type in activity_types:
             if activity_type in main_data.columns:
-                content = main_data[activity_type].iloc[0]
+                content = main_data[main_data.columns[list(main_data.columns).index(activity_type)]].iloc[0]
                 if pd.notna(content):
                     activities[activity_type] = content
         
         # 진로 희망
         career_aspiration = ""
         if '진로희망' in main_data.columns:
-            career_aspiration = main_data['진로희망'].iloc[0]
+            career_aspiration = main_data[main_data.columns[list(main_data.columns).index('진로희망')]].iloc[0]
+            if pd.isna(career_aspiration):
+                career_aspiration = ""
         
         # 학기별 성적
-        grades = grade_data.to_dict('records')
+        grades = []
+        if not grade_data.empty:
+            # 컬럼명에서 개행 문자 제거
+            grade_data.columns = [col.replace('\n', ' ').strip() for col in grade_data.columns]
+            
+            # 성적 데이터 정리
+            for _, row in grade_data.iterrows():
+                if pd.notna(row['학 기']):  # 유효한 행만 처리
+                    grade_entry = {
+                        '학기': row['학 기'],
+                        '교과': row['교 과'],
+                        '과목': row['과 목'],
+                        '학점수': row['학점수'],
+                        '원점수/과목평균': row['원점수/과목평균 (표준편차)'],
+                        '성취도': row['성취도 (수강자수)'],
+                        '석차등급': row['석차등급'] if '석차등급' in row else None
+                    }
+                    grades.append(grade_entry)
         
         # 추출한 정보를 student_info에 저장
         student_info['academic_performance'] = academic_performance
@@ -82,6 +125,7 @@ def extract_student_info(df):
         student_info['grades'] = grades
         
         return student_info
+        
     except Exception as e:
         raise Exception(f"학생 정보 추출 중 오류 발생: {str(e)}")
 
