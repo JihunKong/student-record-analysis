@@ -199,7 +199,7 @@ def analyze_student_record(student_data: Dict[str, Any]) -> Dict[str, Any]:
                     "content": prompt
                 }
             ],
-            "max_completion_tokens": 2000
+            "max_completion_tokens": 4000
         }
         
         # OpenAI API 호출
