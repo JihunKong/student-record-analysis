@@ -8,10 +8,9 @@ def print_detailed_grades(grades_data):
         print(f"\n{semester}:")
         semester_data = grades_data[semester]
         for subject, data in semester_data.items():
-            if subject != '정보':  # 정보 과목 제외
-                grade = data['등급']
-                credits = data['이수단위']
-                print(f"{subject}: {grade}등급 × {credits}학점 = {grade * credits}")
+            grade = data['등급']
+            credits = data['이수단위']
+            print(f"{subject}: {grade}등급 × {credits}학점 = {grade * credits}")
 
 def calculate_average_grade(grades_data):
     total_credit_grade = 0
@@ -30,7 +29,12 @@ def calculate_average_grade(grades_data):
     return round(average_grade, 2)
 
 def create_grade_graph(grades_data):
-    subjects = ['국어', '수학', '영어', '한국사', '통합사회', '통합과학']
+    # 모든 과목 가져오기
+    all_subjects = set()
+    for semester in ['1학기', '2학기']:
+        all_subjects.update(grades_data[semester].keys())
+    subjects = sorted(list(all_subjects))
+    
     semester1_grades = []
     semester2_grades = []
     
@@ -71,7 +75,7 @@ def analyze_grades(grades_data):
                 total_credits += credits
     
     average_grade = total_credit_grade / total_credits
-    print(f"\n=== 평균 등급 계산 ===")
+    print(f"\n=== 평균 등급 계산 (정보 제외) ===")
     print(f"등급 × 이수단위의 합: {total_credit_grade}")
     print(f"이수단위의 합: {total_credits}")
     print(f"평균 등급 = {total_credit_grade} ÷ {total_credits} = {round(average_grade, 2)}")
