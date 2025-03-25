@@ -2,6 +2,17 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
+def print_detailed_grades(grades_data):
+    print("\n=== 상세 성적 내역 ===")
+    for semester in ['1학기', '2학기']:
+        print(f"\n{semester}:")
+        semester_data = grades_data[semester]
+        for subject, data in semester_data.items():
+            if subject != '정보':  # 정보 과목 제외
+                grade = data['등급']
+                credits = data['이수단위']
+                print(f"{subject}: {grade}등급 × {credits}학점 = {grade * credits}")
+
 def calculate_average_grade(grades_data):
     total_credit_grade = 0
     total_credits = 0
@@ -43,9 +54,27 @@ def create_grade_graph(grades_data):
     return plt
 
 def analyze_grades(grades_data):
+    # 상세 성적 내역 출력
+    print_detailed_grades(grades_data)
+    
     # 평균 등급 계산
-    average_grade = calculate_average_grade(grades_data)
-    print(f'평균 등급: {average_grade}')
+    total_credit_grade = 0
+    total_credits = 0
+    
+    for semester in ['1학기', '2학기']:
+        semester_data = grades_data[semester]
+        for subject, data in semester_data.items():
+            if subject != '정보':  # 정보 과목 제외
+                grade = data['등급']
+                credits = data['이수단위']
+                total_credit_grade += (grade * credits)
+                total_credits += credits
+    
+    average_grade = total_credit_grade / total_credits
+    print(f"\n=== 평균 등급 계산 ===")
+    print(f"등급 × 이수단위의 합: {total_credit_grade}")
+    print(f"이수단위의 합: {total_credits}")
+    print(f"평균 등급 = {total_credit_grade} ÷ {total_credits} = {round(average_grade, 2)}")
     
     # 그래프 생성
     plt = create_grade_graph(grades_data)
